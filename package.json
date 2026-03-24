@@ -1,0 +1,19 @@
+{
+    "name": "@ppos/pricing-engine",
+    "version": "1.0.0",
+    "description": "Deterministic Book Pricing Engine for PrintPrice OS",
+    "main": "index.js",
+    "private": true,
+    "scripts": {
+        "start": "node server.js",
+        "test": "node tests/run-tests.js"
+    },
+    "dependencies": {
+        "@fastify/cors": "^8.3.0",
+        "@fastify/helmet": "^11.0.0",
+        "dotenv": "^16.0.0",
+        "fastify": "^4.24.0",
+        "fs-extra": "^11.1.0",
+        "pino": "^8.16.0"
+    }
+}
