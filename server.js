@@ -15,7 +15,7 @@ fastify.get('/health', async () => ({
 
 const start = async () => {
     try {
-        const PORT = process.env.PPOS_PRICING_PORT || 8003;
+        const PORT = process.env.PPOS_PRICING_PORT || 8004;
         await fastify.listen({ port: PORT, host: '0.0.0.0' });
         console.log(`[PRICING-ENGINE] Active on port ${PORT}`);
     } catch (err) {
