@@ -208,6 +208,29 @@ class Repository {
     }
 
     /**
+     * Populates the in-memory cache directly from a raw array of print house
+     * objects, bypassing MongoDB. Intended for tests and local fixtures.
+     * normalizeList() is applied identically to init().
+     *
+     * @param {Array<object>} docs
+     * @returns {void}
+     */
+    loadFromArray(docs) {
+        this._cache = [];
+        this._meta = {
+            source: 'fixture',
+            collection: null,
+            count: 0,
+            errors: [],
+            warnings: [],
+        };
+        const warnings = [];
+        this._cache = normalizeList(docs, warnings);
+        this._meta.warnings.push(...warnings);
+        this._meta.count = this._cache.length;
+    }
+
+    /**
      * Returns all normalised print houses.
      * @returns {Array<object>}
      */

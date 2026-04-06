@@ -1,8 +1,7 @@
 'use strict';
 
-require('dotenv').config();
-
 const { Repository, EstimatesService } = require('../index');
+const testHouse = require('./fixtures/test-house');
 
 let passed = 0;
 let failed = 0;
@@ -22,12 +21,12 @@ function assert(label, condition, detail = '') {
 (async () => {
     console.log('\n[1] Repository');
     const repo = new Repository();
-    await repo.init();
+    repo.loadFromArray([testHouse]);
 
     const meta = repo.debugMeta();
     assert('loads without errors',   meta.errors.length === 0, meta.errors.join(', '));
     assert('loads at least 1 house', meta.count > 0, `count=${meta.count}`);
-    assert('source is mongodb',      meta.source === 'mongodb');
+    assert('source is fixture',      meta.source === 'fixture');
 
     const first = repo.all()[0];
     assert('first house has an id',      !!first?.id);

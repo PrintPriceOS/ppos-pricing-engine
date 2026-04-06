@@ -1,7 +1,5 @@
 'use strict';
 
-require('dotenv').config();
-
 /**
  * Smoke check — validates that exports load and the basic pipeline runs.
  * Used by CI. Exit 0 = pass, exit 1 = fail.
@@ -13,18 +11,6 @@ let failed = 0;
 function check(label, fn) {
     try {
         const result = fn();
-        if (result === false) throw new Error('returned false');
-        console.log(`  ✓ ${label}`);
-        passed++;
-    } catch (err) {
-        console.error(`  ✗ ${label} — ${err.message}`);
-        failed++;
-    }
-}
-
-async function checkAsync(label, fn) {
-    try {
-        const result = await fn();
         if (result === false) throw new Error('returned false');
         console.log(`  ✓ ${label}`);
         passed++;
@@ -50,26 +36,22 @@ check('estimateAll is exported',      () => typeof estimateAll      === 'functio
 check('EstimatesService is exported', () => typeof EstimatesService === 'function');
 
 // --- Repository ---
-(async () => {
-    let repo;
-    check('Repository instantiates', () => { repo = new Repository(); return true; });
-    await checkAsync('Repository loads data', async () => {
-        await repo.init();
-        return repo.debugMeta().errors.length === 0;
-    });
-    check('Repository has houses', () => repo.all().length > 0);
+const testHouse = require('./tests/fixtures/test-house');
+let repo;
+check('Repository instantiates', () => { repo = new Repository(); return true; });
+check('Repository loads data',   () => { repo.loadFromArray([testHouse]); return repo.debugMeta().errors.length === 0; });
+check('Repository has houses',   () => repo.all().length > 0);
 
-    // --- EstimatesService ---
-    let service;
-    check('EstimatesService instantiates', () => { service = new EstimatesService(repo); return true; });
+// --- EstimatesService ---
+let service;
+check('EstimatesService instantiates', () => { service = new EstimatesService(repo); return true; });
 
-    check('estimate() with defaults returns ok', () => {
-        const r = service.estimate({});
-        return r.ok === true && r.engine === 'v3.0';
-    });
+check('estimate() with defaults returns ok', () => {
+    const r = service.estimate({});
+    return r.ok === true && r.engine === 'v3.0';
+});
 
-    // --- Summary ---
-    console.log(`\n${'─'.repeat(40)}`);
-    console.log(`Smoke check: ${passed} passed, ${failed} failed\n`);
-    if (failed > 0) process.exit(1);
-})();
+// --- Summary ---
+console.log(`\n${'─'.repeat(40)}`);
+console.log(`Smoke check: ${passed} passed, ${failed} failed\n`);
+if (failed > 0) process.exit(1);
