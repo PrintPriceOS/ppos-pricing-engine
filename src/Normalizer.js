@@ -68,11 +68,11 @@ function extractMm(label) {
 /** @returns {{ w: number, h: number } | null} */
 function mmFromSeries(code, orientation) {
     const map = {
-        'A4':          [210, 297],
-        'A5':          [148, 210],
-        '170 X 240 MM':[170, 240],
-        '200 X 200 MM':[200, 200],
-        '220 X 220 MM':[220, 220],
+        'A4': [210, 297],
+        'A5': [148, 210],
+        '170 X 240 MM': [170, 240],
+        '200 X 200 MM': [200, 200],
+        '220 X 220 MM': [220, 220],
     };
     const dims = map[code];
     if (!dims) return null;
@@ -143,12 +143,12 @@ function canonBinding(v) {
     v = v.toLowerCase().replace(/\s+/g, ' ').trim();
 
     const map = {
-        'hardcover':     ['hardcover', 'hard cover', 'hc', 'casebound', 'case bound', 'case', 'tapa dura', 'cartoné', 'cartone', 'hard cover casebound'],
+        'hardcover': ['hardcover', 'hard cover', 'hc', 'casebound', 'case bound', 'case', 'tapa dura', 'cartoné', 'cartone', 'hard cover casebound'],
         'perfect bound': ['perfect bound', 'pega', 'pegado', 'tapa blanda', 'softcover', 'pb', 'perfecto', 'rústica', 'rustica'],
-        'wiro':          ['wire-o', 'wiro', 'wire o', 'wire'],
-        'saddle':        ['saddle stitch', 'saddle', 'stapled', 'grapado', '2 staples', '2-staple', 'cosido grapas'],
-        'sewn':          ['section sewn', 'thread sewn', 'sc', 'sewn', 'cosido', 'cosido hilo', 'hilo', 'cosido en hilo'],
-        'spiral':        ['spiral bound', 'spiral', 'espiral bound', 'espiral', 'flexibound', 'flexi bound', 'encuadernación espiral', 'encuadernacion espiral'],
+        'wiro': ['wire-o', 'wiro', 'wire o', 'wire'],
+        'saddle': ['saddle stitch', 'saddle', 'stapled', 'grapado', '2 staples', '2-staple', 'cosido grapas'],
+        'sewn': ['section sewn', 'thread sewn', 'sc', 'sewn', 'cosido', 'cosido hilo', 'hilo', 'cosido en hilo'],
+        'spiral': ['spiral bound', 'spiral', 'espiral bound', 'espiral', 'flexibound', 'flexi bound', 'encuadernación espiral', 'encuadernacion espiral'],
     };
 
     for (const [canon, alts] of Object.entries(map)) {
@@ -174,8 +174,8 @@ function canonFinishing(v) {
     if (noneValues.includes(v) || v.includes('none') || v.includes('no ')) return 'none';
 
     const map = {
-        'matt':       ['matt lamination', 'matte lamination', 'matt lam', 'matt', 'mate', 'laminado mate', 'laminación mate'],
-        'gloss':      ['gloss lamination', 'gloss lam', 'gloss', 'brillante', 'laminado brillante', 'laminación brillante'],
+        'matt': ['matt lamination', 'matte lamination', 'matt lam', 'matt', 'mate', 'laminado mate', 'laminación mate'],
+        'gloss': ['gloss lamination', 'gloss lam', 'gloss', 'brillante', 'laminado brillante', 'laminación brillante'],
         'soft touch': ['soft touch', 'soft-touch', 'velvet', 'toque suave', 'softouch'],
     };
 
@@ -256,10 +256,10 @@ function canonPaperTypeInterior(v) {
     v = v.toLowerCase().replace(/\s+/g, ' ').trim();
     const map = {
         'offset': ['offset', 'woodfree offset'],
-        'mc':     ['mc', 'woodfree mc'],
-        'lux':    ['lux', 'lux cream', 'lux cream paper', 'lux-cream'],
+        'mc': ['mc', 'woodfree mc'],
+        'lux': ['lux', 'lux cream', 'lux cream paper', 'lux-cream'],
         'munken': ['munken', 'munken white/cream', 'munken white', 'munken cream', 'munken paper'],
-        'other':  ['other', 'misc', 'other paper'],
+        'other': ['other', 'misc', 'other paper'],
     };
     for (const [canon, alts] of Object.entries(map)) {
         if (alts.includes(v)) return canon;
@@ -273,11 +273,11 @@ function canonPaperTypeInterior(v) {
 function canonPaperTypeCover(v) {
     v = v.toLowerCase().replace(/\s+/g, ' ').trim();
     const map = {
-        'mc':       ['mc', 'woodfree mc'],
+        'mc': ['mc', 'woodfree mc'],
         'artboard': ['artboard', 'art board', 'art-board', 'artboard single sided', 'artboard ss'],
-        'offset':   ['offset', 'woodfree offset', 'offset paper'],
-        'wfmc':     ['wfmc', 'wf-mc', 'wf mc', 'wfmc upm', 'wfmc paper'],
-        'other':    ['other', 'misc', 'other paper'],
+        'offset': ['offset', 'woodfree offset', 'offset paper'],
+        'wfmc': ['wfmc', 'wf-mc', 'wf mc', 'wfmc upm', 'wfmc paper'],
+        'other': ['other', 'misc', 'other paper'],
     };
     for (const [canon, alts] of Object.entries(map)) {
         if (alts.includes(v)) return canon;
@@ -292,8 +292,8 @@ function canonPaperTypeEndpaper(v) {
     v = v.toLowerCase().replace(/\s+/g, ' ').trim();
     const map = {
         'offset': ['offset', 'woodfree offset', 'offset paper'],
-        'mc':     ['mc', 'woodfree mc'],
-        'other':  ['other', 'misc', 'other paper'],
+        'mc': ['mc', 'woodfree mc'],
+        'other': ['other', 'misc', 'other paper'],
     };
     for (const [canon, alts] of Object.entries(map)) {
         if (alts.includes(v)) return canon;
@@ -323,16 +323,16 @@ class Normalizer {
 
         // --- interior_pages / total_page_count ---
         const interiorPages = getInt(p, 'interior_pages', 0);
-        const totalPages    = getInt(p, 'total_page_count', 0);
+        const totalPages = getInt(p, 'total_page_count', 0);
 
         if (interiorPages > 0) {
-            out.interior_pages   = Math.max(4, Math.min(2000, interiorPages));
+            out.interior_pages = Math.max(4, Math.min(2000, interiorPages));
             out.total_page_count = out.interior_pages + out.cover_pages;
         } else if (totalPages > 0) {
             out.total_page_count = Math.max(6, Math.min(2008, totalPages));
-            out.interior_pages   = Math.max(4, out.total_page_count - out.cover_pages);
+            out.interior_pages = Math.max(4, out.total_page_count - out.cover_pages);
         } else {
-            out.interior_pages   = DEFAULTS.interior_pages;
+            out.interior_pages = DEFAULTS.interior_pages;
             out.total_page_count = out.interior_pages + out.cover_pages;
         }
 
@@ -341,38 +341,38 @@ class Normalizer {
         out.orientation = ['portrait', 'landscape'].includes(ori) ? ori : DEFAULTS.orientation;
 
         // --- book size ---
-        const sizeCode  = String(p.book_size ?? '').toUpperCase().trim();
+        const sizeCode = String(p.book_size ?? '').toUpperCase().trim();
         const sizeLabel = String(p.book_size_label ?? p.book_size ?? '').trim();
-        const isCustom  = isCustomSizeCode(sizeCode);
-        const mm        = isCustom ? extractMm(sizeCode) : mmFromSeries(sizeCode, out.orientation);
+        const isCustom = isCustomSizeCode(sizeCode);
+        const mm = isCustom ? extractMm(sizeCode) : mmFromSeries(sizeCode, out.orientation);
 
-        out.book_size        = sizeCode;
-        out.book_size_label  = sizeLabel || `${sizeCode} (${mm?.w} × ${mm?.h} mm)`;
-        out.book_width_mm    = mm?.w ?? 0;
-        out.book_height_mm   = mm?.h ?? 0;
+        out.book_size = sizeCode;
+        out.book_size_label = sizeLabel || `${sizeCode} (${mm?.w} × ${mm?.h} mm)`;
+        out.book_width_mm = mm?.w ?? 0;
+        out.book_height_mm = mm?.h ?? 0;
 
         // --- print modes ---
-        out.interior_print  = canonInteriorPrint(String(p.interior_print  ?? DEFAULTS.interior_print));
-        out.pms_interior    = Math.max(0, getInt(p, 'pms_interior', DEFAULTS.pms_interior));
-        out.cover_print     = canonCoverPrint(String(p.cover_print ?? DEFAULTS.cover_print));
+        out.interior_print = canonInteriorPrint(String(p.interior_print ?? DEFAULTS.interior_print));
+        out.pms_interior = Math.max(0, getInt(p, 'pms_interior', DEFAULTS.pms_interior));
+        out.cover_print = canonCoverPrint(String(p.cover_print ?? DEFAULTS.cover_print));
         out.cover_print_rev = Math.max(0, getInt(p, 'cover_print_rev', DEFAULTS.cover_print_rev));
-        out.pms_cover       = Math.max(0, getInt(p, 'pms_cover', DEFAULTS.pms_cover));
+        out.pms_cover = Math.max(0, getInt(p, 'pms_cover', DEFAULTS.pms_cover));
 
         // --- paper weights ---
-        out.paper_weight_interior  = Math.max(70,  Math.min(250, getInt(p, 'paper_weight_interior',  DEFAULTS.paper_weight_interior)));
-        out.paper_weight_cover     = Math.max(135, Math.min(350, getInt(p, 'paper_weight_cover',     DEFAULTS.paper_weight_cover)));
-        out.paper_weight_endpapers = Math.max(90,  Math.min(250, getInt(p, 'paper_weight_endpapers', getInt(p, 'endpapers_weight', DEFAULTS.paper_weight_endpapers))));
+        out.paper_weight_interior = Math.max(70, Math.min(250, getInt(p, 'paper_weight_interior', DEFAULTS.paper_weight_interior)));
+        out.paper_weight_cover = Math.max(135, Math.min(350, getInt(p, 'paper_weight_cover', DEFAULTS.paper_weight_cover)));
+        out.paper_weight_endpapers = Math.max(90, Math.min(250, getInt(p, 'paper_weight_endpapers', getInt(p, 'endpapers_weight', DEFAULTS.paper_weight_endpapers))));
 
         // --- extras ---
-        out.extra_book     = Math.max(0, getInt(p, 'extra_book',     DEFAULTS.extra_book));
-        out.extra_fixed    = Math.max(0, getInt(p, 'extra_fixed',    DEFAULTS.extra_fixed));
-        out.extra_section  = Math.max(0, getInt(p, 'extra_section',  DEFAULTS.extra_section));
+        out.extra_book = Math.max(0, getInt(p, 'extra_book', DEFAULTS.extra_book));
+        out.extra_fixed = Math.max(0, getInt(p, 'extra_fixed', DEFAULTS.extra_fixed));
+        out.extra_section = Math.max(0, getInt(p, 'extra_section', DEFAULTS.extra_section));
         out.extra_variable = Math.max(0, getInt(p, 'extra_variable', DEFAULTS.extra_variable));
 
         // --- paper types ---
-        out.paper_type_interior  = canonPaperTypeInterior(String(p.paper_type_interior  ?? DEFAULTS.paper_type_interior));
-        out.paper_type_cover     = canonPaperTypeCover(String(p.paper_type_cover     ?? DEFAULTS.paper_type_cover));
-        out.paper_type_endpaper  = canonPaperTypeEndpaper(String(p.paper_type_endpaper  ?? DEFAULTS.paper_type_endpaper));
+        out.paper_type_interior = canonPaperTypeInterior(String(p.paper_type_interior ?? DEFAULTS.paper_type_interior));
+        out.paper_type_cover = canonPaperTypeCover(String(p.paper_type_cover ?? DEFAULTS.paper_type_cover));
+        out.paper_type_endpaper = canonPaperTypeEndpaper(String(p.paper_type_endpaper ?? DEFAULTS.paper_type_endpaper));
 
         // --- binding method ---
         const bindingInput = String(p.binding_method ?? p.binding ?? '').toLowerCase().trim();
@@ -404,8 +404,8 @@ class Normalizer {
         out.delivery_country = /^[A-Z]{2}$/.test(cc) ? cc : DEFAULTS.delivery_country;
 
         // --- aliases for compat ---
-        out.width_mm      = out.book_width_mm;
-        out.height_mm     = out.book_height_mm;
+        out.width_mm = out.book_width_mm;
+        out.height_mm = out.book_height_mm;
         out.book_size_code = isCustom ? 'CUSTOM' : out.book_size;
 
         return out;

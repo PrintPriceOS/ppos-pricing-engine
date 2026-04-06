@@ -216,39 +216,39 @@ function normalizeParams(p) {
 
     // Binding
     const b = String(arrGet(p, 'binding_method', 'perfect bound')).toLowerCase();
-    if (/case|hard.?cover|hc|tapadura/.test(b))                     p.binding_method = 'hardcover';
-    else if (/saddle|staple|ss|cosido|grapado/.test(b))             p.binding_method = 'saddle';
+    if (/case|hard.?cover|hc|tapadura/.test(b)) p.binding_method = 'hardcover';
+    else if (/saddle|staple|ss|cosido|grapado/.test(b)) p.binding_method = 'saddle';
     else if (/sewn|soft.?cover|thread|cosido hilo|tapa.?blanda/.test(b)) p.binding_method = 'softcover';
-    else if (/wire|wiro|wire-o|wo/.test(b))                         p.binding_method = 'wiro';
-    else if (/spiral|flexibound|espiral/.test(b))                   p.binding_method = 'spiral';
-    else                                                             p.binding_method = 'perfect bound';
+    else if (/wire|wiro|wire-o|wo/.test(b)) p.binding_method = 'wiro';
+    else if (/spiral|flexibound|espiral/.test(b)) p.binding_method = 'spiral';
+    else p.binding_method = 'perfect bound';
 
     // Finishing
     const f = String(arrGet(p, 'finishing_options', 'matt lamination')).toLowerCase();
-    if (/varnish|barniz|esmalte/.test(f))             p.finishing_options = 'varnish';
-    else if (/matt|matte|mate/.test(f))               p.finishing_options = 'matt lamination';
-    else if (/gloss|brillo|brillante/.test(f))        p.finishing_options = 'gloss lamination';
-    else if (/none|sin|no|ninguno/.test(f))           p.finishing_options = 'none';
-    else                                               p.finishing_options = 'matt lamination';
+    if (/varnish|barniz|esmalte/.test(f)) p.finishing_options = 'varnish';
+    else if (/matt|matte|mate/.test(f)) p.finishing_options = 'matt lamination';
+    else if (/gloss|brillo|brillante/.test(f)) p.finishing_options = 'gloss lamination';
+    else if (/none|sin|no|ninguno/.test(f)) p.finishing_options = 'none';
+    else p.finishing_options = 'matt lamination';
 
     // Interior print
     const ip = String(arrGet(p, 'interior_print', '1/1')).toLowerCase();
-    if (/4\/4|4-4|cmyk|color/.test(ip))             p.interior_print = '4/4';
-    else if (/2\/2|2-2|duotone/.test(ip))           p.interior_print = '2/2';
-    else if (/1\/1|1-1|bw|black|b\/w/.test(ip))    p.interior_print = '1/1';
-    else                                             p.interior_print = '1/1';
+    if (/4\/4|4-4|cmyk|color/.test(ip)) p.interior_print = '4/4';
+    else if (/2\/2|2-2|duotone/.test(ip)) p.interior_print = '2/2';
+    else if (/1\/1|1-1|bw|black|b\/w/.test(ip)) p.interior_print = '1/1';
+    else p.interior_print = '1/1';
 
     // Cover print
     const cp = String(arrGet(p, 'cover_print', '4/0')).toLowerCase();
-    if (/4\/0|4-0/.test(cp))                        p.cover_print = '4/0';
-    else if (/4\/4|4-4|cmyk|color/.test(cp))        p.cover_print = '4/4';
-    else if (/1\/0|1-0|bw|black/.test(cp))          p.cover_print = '1/0';
-    else                                             p.cover_print = '4/0';
+    if (/4\/0|4-0/.test(cp)) p.cover_print = '4/0';
+    else if (/4\/4|4-4|cmyk|color/.test(cp)) p.cover_print = '4/4';
+    else if (/1\/0|1-0|bw|black/.test(cp)) p.cover_print = '1/0';
+    else p.cover_print = '4/0';
 
     // Pages
-    p.cover_pages   = Math.max(2, parseInt(arrGet(p, 'cover_pages', 4), 10));
+    p.cover_pages = Math.max(2, parseInt(arrGet(p, 'cover_pages', 4), 10));
     const interiorPages = parseInt(arrGet(p, 'interior_pages', 0), 10);
-    const totalPages    = parseInt(arrGet(p, 'total_page_count', 0), 10);
+    const totalPages = parseInt(arrGet(p, 'total_page_count', 0), 10);
 
     if (interiorPages <= 0 && totalPages > 0) {
         p.interior_pages = Math.max(0, totalPages - p.cover_pages);
@@ -259,8 +259,8 @@ function normalizeParams(p) {
     p.copies = Math.max(1, parseInt(arrGet(p, 'copies', 1), 10));
 
     // Weights
-    p.paper_weight_interior  = Number(arrGet(p, 'paper_weight_interior', 100));
-    p.paper_weight_cover     = Number(arrGet(p, 'paper_weight_cover', 240));
+    p.paper_weight_interior = Number(arrGet(p, 'paper_weight_interior', 100));
+    p.paper_weight_cover = Number(arrGet(p, 'paper_weight_cover', 240));
     p.paper_weight_endpapers = Number(arrGet(p, 'paper_weight_endpapers', 115));
 
     // Endpapers
@@ -353,12 +353,12 @@ function sectionsArray(pages, signature) {
 
 function bindingCost(rates, p, copies, signature, sectArr) {
     const bindingMethodInt = getBindingCode(String(p.binding_method), 'alternative');
-    const sectionsBinding  = getSectionsBindings(bindingMethodInt, signature, sectArr);
+    const sectionsBinding = getSectionsBindings(bindingMethodInt, signature, sectArr);
     let total = 0.0;
 
     function calcCost(fixedKey, varKey) {
         const fixed = Number(arrGet(rates[fixedKey] ?? {}, sectionsBinding, 0));
-        const vari  = Number(arrGet(rates[varKey]   ?? {}, sectionsBinding, 0));
+        const vari = Number(arrGet(rates[varKey] ?? {}, sectionsBinding, 0));
         return fixed + Math.ceil(copies / 1000) * vari;
     }
 
@@ -367,8 +367,8 @@ function bindingCost(rates, p, copies, signature, sectArr) {
             return calcCost(fixedKey, varKey);
         } else {
             const fixed24 = Number(arrGet(rates[fixedKey] ?? {}, 24, 0));
-            const var24   = Number(arrGet(rates[varKey]   ?? {}, 24, 0));
-            const var23   = Number(arrGet(rates[varKey]   ?? {}, 23, 0));
+            const var24 = Number(arrGet(rates[varKey] ?? {}, 24, 0));
+            const var23 = Number(arrGet(rates[varKey] ?? {}, 23, 0));
             const varKey_ = var24 + (var24 - var23) * (sectionsBinding - 24);
             return fixed24 + Math.ceil(copies / 1000) * varKey_;
         }
@@ -410,34 +410,34 @@ function coverPrintCost(costPrintInt, rates, p, copies) {
 
     if (costPrintInt === 0.0 || coverPrintInt === 6) return total;
 
-    const colorFixed = Number(arrGet(rates.cover_fixed_by_colours   ?? {}, coverPrintInt, 0));
-    const colorVar   = Number(arrGet(rates.cover_var_per_1000_by_colours ?? {}, coverPrintInt, 0));
+    const colorFixed = Number(arrGet(rates.cover_fixed_by_colours ?? {}, coverPrintInt, 0));
+    const colorVar = Number(arrGet(rates.cover_var_per_1000_by_colours ?? {}, coverPrintInt, 0));
     total += colorFixed + Math.ceil(copies / 1000) * colorVar;
 
     const coverPrintRev = parseInt(p.cover_print_rev ?? 0, 10);
     if (coverPrintRev > 1 && coverPrintRev <= 6) {
         const revIdx = coverPrintRev - 1;
-        const rFixed = Number(arrGet(rates.cover_fixed_by_colours   ?? {}, revIdx, 0));
-        const rVar   = Number(arrGet(rates.cover_var_per_1000_by_colours ?? {}, revIdx, 0));
+        const rFixed = Number(arrGet(rates.cover_fixed_by_colours ?? {}, revIdx, 0));
+        const rVar = Number(arrGet(rates.cover_var_per_1000_by_colours ?? {}, revIdx, 0));
         total += rFixed + Math.ceil(copies / 1000) * rVar;
     }
 
     const pmsCover = parseInt(p.pms_cover ?? 0, 10);
     const pmsFixed = Number(arrGet(rates.pms_cover ?? {}, 'fixed', 0));
-    const pmsVar   = Number(arrGet(rates.pms_cover ?? {}, 'var', 0));
-    if (pmsCover === 2)      total += pmsFixed + Math.ceil(copies / 1000) * pmsVar;
+    const pmsVar = Number(arrGet(rates.pms_cover ?? {}, 'var', 0));
+    if (pmsCover === 2) total += pmsFixed + Math.ceil(copies / 1000) * pmsVar;
     else if (pmsCover === 3) total += 2 * (pmsFixed + Math.ceil(copies / 1000) * pmsVar);
 
     const finishing = getFinishingText(String(p.finishing_options ?? ''));
     if (finishing !== 'none') {
-        const lamFixed = Number(arrGet(rates.lam_fixed         ?? {}, finishing, 0));
-        const lamVar   = Number(arrGet(rates.lam_var_per_1000  ?? {}, finishing, 0));
+        const lamFixed = Number(arrGet(rates.lam_fixed ?? {}, finishing, 0));
+        const lamVar = Number(arrGet(rates.lam_var_per_1000 ?? {}, finishing, 0));
         total += lamFixed + Math.ceil(copies / 1000) * lamVar;
     }
 
     if (bpeBool(p.uv_varnish)) {
         const uvFixed = Number(arrGet(rates.uv_varnish ?? {}, 'fixed', 0));
-        const uvVar   = Number(arrGet(rates.uv_varnish ?? {}, 'var',   0));
+        const uvVar = Number(arrGet(rates.uv_varnish ?? {}, 'var', 0));
         total += uvFixed + Math.ceil(copies / 1000) * uvVar;
     }
 
@@ -451,7 +451,7 @@ function coverPrintCost(costPrintInt, rates, p, copies) {
 function interiorPrintCost(rates, p, sectArr, copies, signature) {
     const printModeMap = { '4/4': 'full', '2/2': 'two', '1/1': 'one' };
     const printMode = printModeMap[p.interior_print ?? '1/1'] ?? 'one';
-    const colorKey  = `interior_${printMode}_colour`;
+    const colorKey = `interior_${printMode}_colour`;
 
     const sectionKeys = signature === 24
         ? ['24p', '16p', '12p', '8p', '4p']
@@ -462,13 +462,13 @@ function interiorPrintCost(rates, p, sectArr, copies, signature) {
         if (sectArr[i] === 0) continue;
         const sectionKey = sectionKeys[i];
         const fixed = Number(arrGet(rates[`${colorKey}_fixed`] ?? {}, sectionKey, 0));
-        const vari  = Number(arrGet(rates[`${colorKey}_var`]   ?? {}, sectionKey, 0));
+        const vari = Number(arrGet(rates[`${colorKey}_var`] ?? {}, sectionKey, 0));
         totalCost += sectArr[i] * (fixed + Math.ceil(copies / 1000) * vari);
     }
 
     const pmsInterior = parseInt(p.pms_interior ?? 0, 10);
-    const pmsFixed    = Number(rates.pms_interior_fixed ?? 0);
-    if (pmsInterior === 2)      totalCost += pmsFixed;
+    const pmsFixed = Number(rates.pms_interior_fixed ?? 0);
+    if (pmsInterior === 2) totalCost += pmsFixed;
     else if (pmsInterior === 3) totalCost += 2 * pmsFixed;
 
     return totalCost;
@@ -489,19 +489,19 @@ function endpapersCost(costPrintInt, rates, p, copies) {
 
     if (epPrintStr.includes('/')) {
         const parts = epPrintStr.split('/');
-        printingEnds    = parseInt(parts[0] ?? 0, 10);
+        printingEnds = parseInt(parts[0] ?? 0, 10);
         printingEndsRev = parseInt(parts[1] ?? 0, 10);
     }
 
     if (printingEnds >= 1 && printingEnds <= 5) {
-        const epFixed = Number(arrGet(rates.endpaper_fixed_by_colours         ?? {}, printingEnds, 0));
-        const epVar   = Number(arrGet(rates.endpaper_var_per_1000_by_colours  ?? {}, printingEnds, 0));
+        const epFixed = Number(arrGet(rates.endpaper_fixed_by_colours ?? {}, printingEnds, 0));
+        const epVar = Number(arrGet(rates.endpaper_var_per_1000_by_colours ?? {}, printingEnds, 0));
         total += epFixed + Math.ceil(copies / 1000) * epVar;
     }
 
     if (printingEndsRev >= 1 && printingEndsRev <= 5) {
-        const epFixed = Number(arrGet(rates.endpaper_fixed_by_colours         ?? {}, printingEndsRev, 0));
-        const epVar   = Number(arrGet(rates.endpaper_var_per_1000_by_colours  ?? {}, printingEndsRev, 0));
+        const epFixed = Number(arrGet(rates.endpaper_fixed_by_colours ?? {}, printingEndsRev, 0));
+        const epVar = Number(arrGet(rates.endpaper_var_per_1000_by_colours ?? {}, printingEndsRev, 0));
         total += epFixed + Math.ceil(copies / 1000) * epVar;
     }
 
@@ -514,11 +514,11 @@ function endpapersCost(costPrintInt, rates, p, copies) {
 
 function extraCosts(p, copies, signature, sectArr) {
     const bindingMethodInt = getBindingCode(String(p.binding_method), 'alternative');
-    const sectionsBinding  = getSectionsBindings(bindingMethodInt, signature, sectArr);
+    const sectionsBinding = getSectionsBindings(bindingMethodInt, signature, sectArr);
 
-    const extraBook     = parseInt(p.extra_book     ?? 0, 10);
-    const extraSection  = parseInt(p.extra_section  ?? 0, 10);
-    const extraFixed    = Number(p.extra_fixed    ?? 0);
+    const extraBook = parseInt(p.extra_book ?? 0, 10);
+    const extraSection = parseInt(p.extra_section ?? 0, 10);
+    const extraFixed = Number(p.extra_fixed ?? 0);
     const extraVariable = Number(p.extra_variable ?? 0);
 
     return copies * extraBook
@@ -535,8 +535,8 @@ function sheetsInterior(rates, p, copies, signature, sectArr) {
     const printModeMap = { '4/4': 'full', '2/2': 'two', '1/1': 'one' };
     const printMode = printModeMap[p.interior_print ?? '1/1'] ?? 'one';
 
-    const fixed = Number(arrGet(rates.paper_interior_fixed_by_colours         ?? {}, printMode, 0));
-    let   vari  = Number(arrGet(rates.paper_interior_var_per_1000_by_colours  ?? {}, printMode, 0));
+    const fixed = Number(arrGet(rates.paper_interior_fixed_by_colours ?? {}, printMode, 0));
+    let vari = Number(arrGet(rates.paper_interior_var_per_1000_by_colours ?? {}, printMode, 0));
     vari /= 100;
 
     let totalPaperInterior, paperNetInterior;
@@ -547,17 +547,17 @@ function sheetsInterior(rates, p, copies, signature, sectArr) {
             s24 * fixed + s24 * copies * vari +
             s16 * fixed + s16 * copies * vari +
             s12 * fixed + s12 * (copies / 2) * vari +
-            s8  * fixed + s8  * (copies / 2) * vari +
-            s4  * fixed + s4  * (copies / 4) * vari;
+            s8 * fixed + s8 * (copies / 2) * vari +
+            s4 * fixed + s4 * (copies / 4) * vari;
         paperNetInterior =
             s24 * copies + s16 * copies + (s12 / 2) * copies + (s8 / 2) * copies + (s4 / 4) * copies;
     } else if (signature === 16) {
         const [s32, s16, s8, s4] = sectArr;
         totalPaperInterior =
             s32 * 2 * fixed + s32 * 2 * copies * vari +
-            s16 * fixed     + s16 * copies * vari +
-            s8  * fixed     + s8  * (copies / 2) * vari +
-            s4  * fixed     + s4  * (copies / 4) * vari;
+            s16 * fixed + s16 * copies * vari +
+            s8 * fixed + s8 * (copies / 2) * vari +
+            s4 * fixed + s4 * (copies / 4) * vari;
         paperNetInterior =
             s32 * 2 * copies + s16 * copies + (s8 / 2) * copies + (s4 / 4) * copies;
     } else {
@@ -566,8 +566,8 @@ function sheetsInterior(rates, p, copies, signature, sectArr) {
         totalPaperInterior =
             s32 * fixed + s32 * copies * vari +
             s16 * fixed + s16 * (copies / 2) * vari +
-            s8  * fixed + s8  * (copies / 4) * vari +
-            s4  * fixed + s4  * (copies / 4) * vari;
+            s8 * fixed + s8 * (copies / 4) * vari +
+            s4 * fixed + s4 * (copies / 4) * vari;
         paperNetInterior =
             s32 * copies + (s16 / 2) * copies + (s8 / 4) * copies + (s4 / 4) * copies;
     }
@@ -597,17 +597,17 @@ function sheetsCover(rates, p, copies, signature) {
     const printModeMap = { 1: 'one', 2: 'two' };
     const printMode = printModeMap[coverPrint] ?? ([3, 4, 5].includes(coverPrint) ? 'full' : 'one');
 
-    const fixed = Number(arrGet(rates.paper_cover_fixed_by_colours         ?? {}, printMode, 0));
-    let   vari  = Number(arrGet(rates.paper_cover_var_per_1000_by_colours  ?? {}, printMode, 0));
+    const fixed = Number(arrGet(rates.paper_cover_fixed_by_colours ?? {}, printMode, 0));
+    let vari = Number(arrGet(rates.paper_cover_var_per_1000_by_colours ?? {}, printMode, 0));
     vari /= 100;
 
     let totalPaperCover, paperNetCover;
     if (signature === 32) {
         totalPaperCover = fixed + (copies / 8) * vari;
-        paperNetCover   = copies / 8;
+        paperNetCover = copies / 8;
     } else {
         totalPaperCover = fixed + (copies / 4) * vari;
-        paperNetCover   = copies / 4;
+        paperNetCover = copies / 4;
     }
 
     return paperNetCover + Math.round(totalPaperCover);
@@ -636,8 +636,8 @@ function sheetsEndpaper(rates, p, copies, signature) {
     const printModeMap = { 1: 'one', 2: 'two' };
     const printMode = printModeMap[printingEnds] ?? ([3, 4, 5].includes(printingEnds) ? 'full' : 'one');
 
-    const fixed = Number(arrGet(rates.paper_endpapers_fixed_by_colours         ?? {}, printMode, 0));
-    let   vari  = Number(arrGet(rates.paper_endpapers_var_per_1000_by_colours  ?? {}, printMode, 0));
+    const fixed = Number(arrGet(rates.paper_endpapers_fixed_by_colours ?? {}, printMode, 0));
+    let vari = Number(arrGet(rates.paper_endpapers_var_per_1000_by_colours ?? {}, printMode, 0));
     vari /= 100;
 
     const totalPaperEndpaper = signature === 32
@@ -652,25 +652,25 @@ function sheetsEndpaper(rates, p, copies, signature) {
  * ---------------------------------------------------------------------- */
 
 function kiloInterior(p, sheetsInteriorVal) {
-    const bookSize   = String(p.book_size ?? '');
+    const bookSize = String(p.book_size ?? '');
     const orientation = String(p.orientation ?? 'portrait');
-    const widthMm    = parseInt(p.book_width_mm  ?? p.width_mm  ?? 0, 10);
-    const heightMm   = parseInt(p.book_height_mm ?? p.height_mm ?? 0, 10);
-    const isCustom   = !['A5', 'A4', '170 X 240 MM', '200 X 200 MM', '220 X 220 MM'].includes(bookSize);
-    const paperSize  = getPaperSize(bookSize, orientation, widthMm, heightMm, isCustom);
-    const sizeDef    = getSizeDef(paperSize);
-    const weightDef  = parseInt(p.paper_weight_interior, 10);
+    const widthMm = parseInt(p.book_width_mm ?? p.width_mm ?? 0, 10);
+    const heightMm = parseInt(p.book_height_mm ?? p.height_mm ?? 0, 10);
+    const isCustom = !['A5', 'A4', '170 X 240 MM', '200 X 200 MM', '220 X 220 MM'].includes(bookSize);
+    const paperSize = getPaperSize(bookSize, orientation, widthMm, heightMm, isCustom);
+    const sizeDef = getSizeDef(paperSize);
+    const weightDef = parseInt(p.paper_weight_interior, 10);
     return Math.round(sheetsInteriorVal * sizeDef * (weightDef / 1000));
 }
 
 function kiloCover(p, sheetsCoverVal) {
-    const sizeDef   = getSizeDef('720x1020');
+    const sizeDef = getSizeDef('720x1020');
     const weightDef = parseInt(p.paper_weight_cover, 10);
     return Math.round(sheetsCoverVal * sizeDef * (weightDef / 1000));
 }
 
 function kiloEndpaper(p, sheetsEndpaperVal) {
-    const sizeDef   = getSizeDef('520x800');
+    const sizeDef = getSizeDef('520x800');
     const weightDef = parseInt(p.paper_weight_endpapers, 10);
     return Math.round(sheetsEndpaperVal * sizeDef * (weightDef / 1000));
 }
@@ -706,7 +706,7 @@ function costEndpaper(rates, p, kiloEndpaperVal) {
 function costTransport(rates, p, copies, sectArr, costPrintInt, costPrintCov, endpaper, costBinding, extraCost, paper) {
     const technicalCostsTransport = Boolean(rates.technical_costs_for_transport ?? false);
     const deliveryCountry = String(p.delivery_country ?? 'ES');
-    const countryName     = getCountryName(deliveryCountry);
+    const countryName = getCountryName(deliveryCountry);
     let total = 0.0;
 
     if (technicalCostsTransport) {
@@ -718,12 +718,12 @@ function costTransport(rates, p, copies, sectArr, costPrintInt, costPrintCov, en
         const totalBooks = bindingMethodInt === 3 ? 11000 : 7000;
 
         const [s32, s16, s8, s4] = sectArr;
-        const totalSections  = s32 * 2 + s16 + (s8 / 2) + (s4 / 4);
+        const totalSections = s32 * 2 + s16 + (s8 / 2) + (s4 / 4);
         const divisionSections = totalBooks / totalSections;
         const pallets = Math.ceil(copies / divisionSections);
 
-        const fullContainer  = Number(arrGet(rates.transport_costs ?? {}, countryName, 0));
-        const multiplier     = Number(rates.additional_transport_multiplier ?? 0);
+        const fullContainer = Number(arrGet(rates.transport_costs ?? {}, countryName, 0));
+        const multiplier = Number(rates.additional_transport_multiplier ?? 0);
         total = ((fullContainer / 28) * pallets) * multiplier;
     }
 
@@ -743,34 +743,34 @@ function costTransport(rates, p, copies, sectArr, costPrintInt, costPrintCov, en
 function buildPrice(params, house) {
     const p = normalizeParams(params);
 
-    const rates  = arrGet(house, 'rates', {});
+    const rates = arrGet(house, 'rates', {});
     const copies = parseInt(arrGet(p, 'copies', 1), 10);
 
     // Signature & sections
-    const sig       = pickSignature(house, parseInt(p.interior_pages, 10));
-    p.signature     = sig;
-    const sects     = sections(parseInt(p.interior_pages, 10), sig);
-    const sectArr   = sectionsArray(parseInt(p.interior_pages, 10), sig);
+    const sig = pickSignature(house, parseInt(p.interior_pages, 10));
+    p.signature = sig;
+    const sects = sections(parseInt(p.interior_pages, 10), sig);
+    const sectArr = sectionsArray(parseInt(p.interior_pages, 10), sig);
 
     // Cost components
-    const costPrintInt  = interiorPrintCost(rates, p, sectArr, copies, sig);
-    const costPrintCov  = coverPrintCost(costPrintInt, rates, p, copies);
-    const endpaper      = endpapersCost(costPrintInt, rates, p, copies);
-    const costBinding   = bindingCost(rates, p, copies, sig, sectArr);
-    const extraCost     = extraCosts(p, copies, sig, sectArr);
+    const costPrintInt = interiorPrintCost(rates, p, sectArr, copies, sig);
+    const costPrintCov = coverPrintCost(costPrintInt, rates, p, copies);
+    const endpaper = endpapersCost(costPrintInt, rates, p, copies);
+    const costBinding = bindingCost(rates, p, copies, sig, sectArr);
+    const extraCost = extraCosts(p, copies, sig, sectArr);
 
-    const sheetsInt     = sheetsInterior(rates, p, copies, sig, sectArr);
-    const sheetsCov     = sheetsCover(rates, p, copies, sig);
-    const sheetsEnd     = sheetsEndpaper(rates, p, copies, sig);
+    const sheetsInt = sheetsInterior(rates, p, copies, sig, sectArr);
+    const sheetsCov = sheetsCover(rates, p, copies, sig);
+    const sheetsEnd = sheetsEndpaper(rates, p, copies, sig);
 
-    const kiloInt  = kiloInterior(p, sheetsInt);
-    const kiloCov  = kiloCover(p, sheetsCov);
-    const kiloEnd  = kiloEndpaper(p, sheetsEnd);
+    const kiloInt = kiloInterior(p, sheetsInt);
+    const kiloCov = kiloCover(p, sheetsCov);
+    const kiloEnd = kiloEndpaper(p, sheetsEnd);
 
     const costPaperInt = costInterior(rates, p, kiloInt);
     const costPaperCov = costCover(rates, p, kiloCov);
     const costPaperEnd = costEndpaper(rates, p, kiloEnd);
-    const paper        = costPaperInt + costPaperCov + costPaperEnd;
+    const paper = costPaperInt + costPaperCov + costPaperEnd;
 
     const costShip = costTransport(
         rates, p, copies, sectArr,
@@ -780,17 +780,17 @@ function buildPrice(params, house) {
     // Line items
     const lines = [
         { item: `Interior paper (${p.paper_weight_interior}gsm)`, line_total: round2(costPaperInt) },
-        { item: `Interior print (${p.interior_print})`,           line_total: round2(costPrintInt) },
+        { item: `Interior print (${p.interior_print})`, line_total: round2(costPrintInt) },
         { item: `Cover paper (${p.paper_weight_cover}gsm, ${p.cover_pages}p)`, line_total: round2(costPaperCov) },
-        { item: `Cover print (${p.cover_print})`,                 line_total: round2(costPrintCov) },
+        { item: `Cover print (${p.cover_print})`, line_total: round2(costPrintCov) },
         { item: `Endpapers paper (${p.paper_weight_endpapers}gsm)`, line_total: round2(costPaperEnd) },
-        { item: 'Endpapers print',                                line_total: round2(endpaper) },
-        { item: `Binding (${p.binding_method})`,                  line_total: round2(costBinding) },
-        { item: 'Extra costs',                                     line_total: round2(extraCost) },
-        { item: 'Shipping',                                        line_total: round2(costShip) },
+        { item: 'Endpapers print', line_total: round2(endpaper) },
+        { item: `Binding (${p.binding_method})`, line_total: round2(costBinding) },
+        { item: 'Extra costs', line_total: round2(extraCost) },
+        { item: 'Shipping', line_total: round2(costShip) },
         // Informative
-        { item: 'Sections',  value: sects },
-        { item: 'Signature', value: sig   },
+        { item: 'Sections', value: sects },
+        { item: 'Signature', value: sig },
         { item: 'Book size', value: `${p.book_size_code} (${p.book_width_mm}×${p.book_height_mm} mm)` },
     ];
 
@@ -808,25 +808,25 @@ function buildPrice(params, house) {
     const etaDays = prodDays + shipDays;
 
     return {
-        print_house:              String(firstOf(house, ['print_house', 'name'], 'Unknown')),
-        house_id:                 String(arrGet(house, 'id', 'unknown')),
-        total_cost:               round2(subtotal),
-        delivery_time:            String(arrGet(house, 'delivery_time', `${etaDays} days`)),
-        estimated_delivery_time:  `${etaDays} days`,
-        production_lead_days:     prodDays,
-        shipping_days:            shipDays,
-        signature:                sig,
-        sections:                 sects,
+        print_house: String(firstOf(house, ['print_house', 'name'], 'Unknown')),
+        house_id: String(arrGet(house, 'id', 'unknown')),
+        total_cost: round2(subtotal),
+        delivery_time: String(arrGet(house, 'delivery_time', `${etaDays} days`)),
+        estimated_delivery_time: `${etaDays} days`,
+        production_lead_days: prodDays,
+        shipping_days: shipDays,
+        signature: sig,
+        sections: sects,
         lines,
-        source_file: 'engine:v2.9-fixed-impact',
+        source_file: 'engine:v3.0',
         debug: {
-            params:   p,
-            pages:    { interior: parseInt(p.interior_pages, 10), cover: parseInt(p.cover_pages, 10) },
+            params: p,
+            pages: { interior: parseInt(p.interior_pages, 10), cover: parseInt(p.cover_pages, 10) },
             copies,
             signature: sig,
             sections: sects,
             rates_used: {
-                binding:   p.binding_method,
+                binding: p.binding_method,
                 finishing: p.finishing_options,
                 book_size: p.book_size_code,
             },
@@ -835,9 +835,9 @@ function buildPrice(params, house) {
                 cost_print_int: round2(costPrintInt),
                 cost_paper_cov: round2(costPaperCov),
                 cost_print_cov: round2(costPrintCov),
-                cost_binding:   round2(costBinding),
-                cost_ship:      round2(costShip),
-                subtotal:       round2(subtotal),
+                cost_binding: round2(costBinding),
+                cost_ship: round2(costShip),
+                subtotal: round2(subtotal),
             },
             eta: { prod_days: prodDays, ship_days: shipDays, eta_days: etaDays },
         },
@@ -861,10 +861,10 @@ function estimateAll(params, houses) {
 
     for (const h of houses) {
         try {
-            const houseId   = arrGet(h, 'id', 'unknown');
-            const limits    = arrGet(h, 'limits', {});
+            const houseId = arrGet(h, 'id', 'unknown');
+            const limits = arrGet(h, 'limits', {});
             const minCopies = parseInt(arrGet(limits, 'min_copies', 0), 10);
-            const maxPages  = parseInt(arrGet(limits, 'max_pages', Number.MAX_SAFE_INTEGER), 10);
+            const maxPages = parseInt(arrGet(limits, 'max_pages', Number.MAX_SAFE_INTEGER), 10);
 
             if (p.copies < minCopies) {
                 errors[houseId] = `Minimum ${minCopies} copies required`;
@@ -883,33 +883,33 @@ function estimateAll(params, houses) {
     }
 
     // Filter by allowed signatures based on book size
-    const widthMm  = parseInt(p.book_width_mm  ?? p.width_mm  ?? 0, 10);
+    const widthMm = parseInt(p.book_width_mm ?? p.width_mm ?? 0, 10);
     const heightMm = parseInt(p.book_height_mm ?? p.height_mm ?? 0, 10);
     let allowedSignatures = null;
 
     if (
-        (widthMm >= 100 && widthMm <= 105  && heightMm >= 120 && heightMm <= 148) ||
-        (widthMm >= 106 && widthMm <= 119  && heightMm >= 149 && heightMm <= 166) ||
-        (widthMm >= 120 && widthMm <= 150  && heightMm >= 167 && heightMm <= 214) ||
-        (widthMm >= 151 && widthMm <= 170  && heightMm >= 167 && heightMm <= 245) ||
-        (widthMm >= 150 && widthMm <= 214  && heightMm >= 120 && heightMm <= 148) ||
-        (widthMm >= 215 && widthMm <= 245  && heightMm >= 149 && heightMm <= 167)
+        (widthMm >= 100 && widthMm <= 105 && heightMm >= 120 && heightMm <= 148) ||
+        (widthMm >= 106 && widthMm <= 119 && heightMm >= 149 && heightMm <= 166) ||
+        (widthMm >= 120 && widthMm <= 150 && heightMm >= 167 && heightMm <= 214) ||
+        (widthMm >= 151 && widthMm <= 170 && heightMm >= 167 && heightMm <= 245) ||
+        (widthMm >= 150 && widthMm <= 214 && heightMm >= 120 && heightMm <= 148) ||
+        (widthMm >= 215 && widthMm <= 245 && heightMm >= 149 && heightMm <= 167)
     ) {
         allowedSignatures = [32];
     } else if (
-        (widthMm >= 175 && widthMm <= 214  && heightMm >= 250 && heightMm <= 302) ||
-        (widthMm >= 175 && widthMm <= 245  && heightMm >= 303 && heightMm <= 340) ||
-        (widthMm >= 250 && widthMm <= 297  && heightMm >= 160 && heightMm <= 212) ||
-        (widthMm === 297                   && heightMm >= 215 && heightMm <= 240)
+        (widthMm >= 175 && widthMm <= 214 && heightMm >= 250 && heightMm <= 302) ||
+        (widthMm >= 175 && widthMm <= 245 && heightMm >= 303 && heightMm <= 340) ||
+        (widthMm >= 250 && widthMm <= 297 && heightMm >= 160 && heightMm <= 212) ||
+        (widthMm === 297 && heightMm >= 215 && heightMm <= 240)
     ) {
         allowedSignatures = [16];
     } else if (
-        (widthMm >= 160 && widthMm <= 214  && heightMm >= 170 && heightMm <= 200) ||
-        (widthMm >= 120 && widthMm <= 150  && heightMm >= 246 && heightMm <= 289) ||
-        (widthMm >= 175 && widthMm <= 245  && heightMm >= 201 && heightMm <= 220) ||
-        (widthMm >= 120 && widthMm <= 167  && heightMm >= 290 && heightMm <= 325) ||
-        (widthMm >= 250 && widthMm <= 287  && heightMm >= 250 && heightMm <= 300) ||
-        (widthMm >= 288 && widthMm <= 297  && heightMm >= 301 && heightMm <= 340)
+        (widthMm >= 160 && widthMm <= 214 && heightMm >= 170 && heightMm <= 200) ||
+        (widthMm >= 120 && widthMm <= 150 && heightMm >= 246 && heightMm <= 289) ||
+        (widthMm >= 175 && widthMm <= 245 && heightMm >= 201 && heightMm <= 220) ||
+        (widthMm >= 120 && widthMm <= 167 && heightMm >= 290 && heightMm <= 325) ||
+        (widthMm >= 250 && widthMm <= 287 && heightMm >= 250 && heightMm <= 300) ||
+        (widthMm >= 288 && widthMm <= 297 && heightMm >= 301 && heightMm <= 340)
     ) {
         allowedSignatures = [24];
     }
@@ -930,12 +930,12 @@ function estimateAll(params, houses) {
     return {
         ok: true,
         data: {
-            ok:                    true,
-            engine:                'json-engine-v2.9',
-            print_houses:          filteredOffers,
-            selected_print_house:  selected,
-            count:                 filteredOffers.length,
-            params:                p,
+            ok: true,
+            engine: 'v3.0',
+            print_houses: filteredOffers,
+            selected_print_house: selected,
+            count: filteredOffers.length,
+            params: p,
             errors,
         },
         count: filteredOffers.length,

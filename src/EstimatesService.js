@@ -11,25 +11,25 @@
 
 'use strict';
 
-const Normalizer  = require('./Normalizer');
+const Normalizer = require('./Normalizer');
 const { estimateAll } = require('./PriceEngine');
 
 /** Mirrors the PHP REST controller's default_params(). */
 const DEFAULTS = {
-    copies:                1000,
-    interior_pages:        128,
-    cover_pages:           4,
-    book_size:             'A5',
-    book_size_code:        'A5',
-    binding_method:        'thread sewn hardcover',
-    finishing_options:     'matt lamination',
-    interior_print:        '1/1',
-    cover_print:           '4/0',
-    delivery_country:      'NL',
-    endpapers:             '',
-    endpapers_print:       '1/0',
+    copies: 1000,
+    interior_pages: 128,
+    cover_pages: 4,
+    book_size: 'A5',
+    book_size_code: 'A5',
+    binding_method: 'thread sewn hardcover',
+    finishing_options: 'matt lamination',
+    interior_print: '1/1',
+    cover_print: '4/0',
+    delivery_country: 'NL',
+    endpapers: '',
+    endpapers_print: '1/0',
     paper_weight_interior: 135,
-    paper_weight_cover:    250,
+    paper_weight_cover: 250,
 };
 
 class EstimatesService {
@@ -61,7 +61,7 @@ class EstimatesService {
         if (houses.length === 0) {
             return {
                 ok: true,
-                engine: 'json-engine-v2.9',
+                engine: 'v3.0',
                 count: 0,
                 params,
                 selected_print_house: null,
@@ -87,7 +87,7 @@ class EstimatesService {
         if (!result.data.print_houses || result.data.print_houses.length === 0) {
             return {
                 ok: true,
-                engine: 'json-engine-v2.9',
+                engine: 'v3.0',
                 count: 0,
                 params: normalised,
                 selected_print_house: null,
@@ -128,8 +128,8 @@ class EstimatesService {
 
         if (items.length === 0) {
             return {
-                ok:     true,
-                engine: 'json-engine-v2.9',
+                ok: true,
+                engine: 'v3.0',
                 print_houses: [],
                 count: 0,
                 params: data.params ?? {},
@@ -137,25 +137,25 @@ class EstimatesService {
         }
 
         const response = {
-            ok:     true,
-            engine: 'json-engine-v2.9',
-            count:  data.count != null ? parseInt(data.count, 10) : items.length,
+            ok: true,
+            engine: 'v3.0',
+            count: data.count != null ? parseInt(data.count, 10) : items.length,
             params: data.params ?? {},
             selected_print_house: data.selected_print_house ?? null,
             print_houses: items.map(house => ({
-                print_house:              house.print_house             ?? 'Unknown',
-                house_id:                 house.house_id                ?? (house.id ?? 'unknown'),
-                total_cost:               Number(house.total_cost       ?? 0),
-                delivery_time:            house.delivery_time           ?? 'N/A',
-                estimated_delivery_time:  house.estimated_delivery_time ?? 'N/A',
-                production_lead_days:     parseInt(house.production_lead_days ?? 0, 10),
-                shipping_days:            parseInt(house.shipping_days        ?? 0, 10),
-                signature:                parseInt(house.signature            ?? 0, 10),
-                sections:                 parseInt(house.sections             ?? 0, 10),
+                print_house: house.print_house ?? 'Unknown',
+                house_id: house.house_id ?? (house.id ?? 'unknown'),
+                total_cost: Number(house.total_cost ?? 0),
+                delivery_time: house.delivery_time ?? 'N/A',
+                estimated_delivery_time: house.estimated_delivery_time ?? 'N/A',
+                production_lead_days: parseInt(house.production_lead_days ?? 0, 10),
+                shipping_days: parseInt(house.shipping_days ?? 0, 10),
+                signature: parseInt(house.signature ?? 0, 10),
+                sections: parseInt(house.sections ?? 0, 10),
                 lines: (house.lines ?? []).map(line => ({
-                    item:       line.item       ?? '',
+                    item: line.item ?? '',
                     line_total: line.line_total != null ? Number(line.line_total) : null,
-                    value:      line.value      ?? null,
+                    value: line.value ?? null,
                 })),
             })),
         };

@@ -2,12 +2,21 @@
 
 const { Repository, EstimatesService } = require('../index');
 
-const repository = new Repository();
-const service = new EstimatesService(repository);
-
 async function estimatesRoutes(fastify, options) {
+    const repository = new Repository();
+    await repository.init();
+
+    const meta = repository.debugMeta();
+    if (meta.errors.length > 0) {
+        fastify.log.error({ errors: meta.errors }, 'Repository failed to load print houses');
+    } else {
+        fastify.log.info({ count: meta.count }, 'Print houses loaded from MongoDB');
+    }
+
+    const service = new EstimatesService(repository);
+
     /**
-     * POST /api/pricing/estimates
+     * POST /api/estimates
      * Runs the full pricing pipeline and returns offers from all print houses.
      */
     fastify.post('/estimates', async (request, reply) => {

@@ -1,22 +1,19 @@
 /**
  * PrintPrice OS — Pricing Engine
  *
- * Repository — loads and normalises print house data from a JSON file.
+ * Repository — loads and normalises print house data from MongoDB.
  * Ported from BPE\Repository (PHP v2.9).
  *
  * Key behaviours preserved from PHP:
  *   - Full `rates` structure is kept intact (never flattened) — engine depends on it
  *   - `signatures` array is always present; falls back to [16]
  *   - Multiple field-name aliases are resolved (id/house_id/slug, name/print_house/title, etc.)
- *   - Load metadata tracked for diagnostics (loadedPath, count, errors, warnings)
+ *   - Load metadata tracked for diagnostics (count, errors, warnings)
  */
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-
-const DEFAULT_JSON_PATH = path.resolve(__dirname, '../data/print-houses.json');
+const { MongoClient } = require('mongodb');
 
 const DEFAULTS = {
     signature: 16,
@@ -25,6 +22,8 @@ const DEFAULTS = {
     shipping_days: 2,
     shipping_per_kg: 0.95,
 };
+
+const COLLECTION = 'printhouses';
 
 /**
  * Converts a string to a URL-safe slug (mirrors WP's sanitize_title).
@@ -39,7 +38,7 @@ function slugify(str) {
 }
 
 /**
- * Normalises a raw array of print house objects loaded from JSON.
+ * Normalises a raw array of print house objects loaded from MongoDB.
  * @param {Array<object>} rows
  * @param {string[]} warnings  Mutable array — warnings are pushed here.
  * @returns {Array<object>}
@@ -141,10 +140,9 @@ function normalizeList(rows, warnings = []) {
 
             delivery_time: `${prod_days}+${ship_days} days`,
             estimated_delivery_time: `${prod_days + ship_days} days`,
-            source_file: String(row.source_file ?? ''),
 
             _debug: {
-                original_keys: Object.keys(row),
+                original_keys: Object.keys(row).filter(k => k !== '_id'),
                 has_rates: Object.keys(rates).length > 0,
                 signature_source: Array.isArray(row.signatures) ? 'signatures'
                     : (row.signature != null ? 'signature' : 'default'),
@@ -156,68 +154,56 @@ function normalizeList(rows, warnings = []) {
 }
 
 class Repository {
-    constructor(filePath = DEFAULT_JSON_PATH) {
+    constructor() {
         /** @type {Array<object>} */
         this._cache = [];
 
         /** @type {object|null} */
         this._meta = null;
-
-        this.load(filePath);
     }
 
     /**
-     * Loads print houses from a JSON file.
-     * Re-entrant — calling load() again replaces the current cache.
+     * Connects to MongoDB, fetches all print houses from the `printhouses`
+     * collection, normalises them, and stores them in the in-memory cache.
      *
-     * @param {string} filePath  Absolute path to print-houses.json
-     * @returns {void}
+     * @param {string} [uri]  MongoDB connection URI. Defaults to MONGODB_URI env var.
+     * @returns {Promise<void>}
      */
-    load(filePath) {
+    async init(uri = process.env.MONGODB_URI) {
         this._cache = [];
         this._meta = {
-            source: 'file',
-            loadedPath: null,
+            source: 'mongodb',
+            collection: COLLECTION,
             count: 0,
             errors: [],
             warnings: [],
         };
 
-        const resolvedPath = path.resolve(filePath);
+        if (!uri) {
+            this._meta.errors.push('MONGODB_URI environment variable is not set');
+            return;
+        }
+
+        const client = new MongoClient(uri);
 
         try {
-            if (!fs.existsSync(resolvedPath)) {
-                this._meta.errors.push(`File not found: ${resolvedPath}`);
-                return;
-            }
+            await client.connect();
+            const db = client.db();
+            const docs = await db.collection(COLLECTION).find({}).toArray();
 
-            const raw = fs.readFileSync(resolvedPath, 'utf8');
-            let data;
-
-            try {
-                data = JSON.parse(raw);
-            } catch (parseErr) {
-                this._meta.errors.push(`JSON parse error in ${resolvedPath}: ${parseErr.message}`);
-                return;
-            }
-
-            if (!Array.isArray(data)) {
-                this._meta.errors.push(`Expected a JSON array in ${resolvedPath}`);
-                return;
-            }
-
-            if (data.length === 0) {
-                this._meta.warnings.push(`Empty array in ${resolvedPath}`);
+            if (docs.length === 0) {
+                this._meta.warnings.push(`Collection '${COLLECTION}' is empty`);
             }
 
             const warnings = [];
-            this._cache = normalizeList(data, warnings);
+            this._cache = normalizeList(docs, warnings);
             this._meta.warnings.push(...warnings);
-            this._meta.loadedPath = resolvedPath;
             this._meta.count = this._cache.length;
 
         } catch (err) {
-            this._meta.errors.push(`Unexpected error loading ${resolvedPath}: ${err.message}`);
+            this._meta.errors.push(`MongoDB error: ${err.message}`);
+        } finally {
+            await client.close();
         }
     }
 

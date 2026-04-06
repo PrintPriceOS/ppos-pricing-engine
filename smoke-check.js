@@ -47,7 +47,7 @@ check('EstimatesService instantiates', () => { service = new EstimatesService(re
 
 check('estimate() with defaults returns ok', () => {
     const r = service.estimate({});
-    return r.ok === true && r.engine === 'json-engine-v2.9';
+    return r.ok === true && r.engine === 'v3.0';
 });
 
 // --- Summary ---
