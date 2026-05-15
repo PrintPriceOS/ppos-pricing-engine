@@ -113,6 +113,85 @@ console.log(result.selected_print_house);
 npm test
 ```
 
+## Marketplace Offers API
+
+**Endpoint:** `POST /api/marketplace/offers`
+
+**Purpose:**
+Generate Control Plane-compatible marketplace offers from deterministic Pricing Engine calculations.
+
+**Important:**
+This endpoint is **side-effect-free**. It does not create orders, sessions, offers, events, or dispatches. Control Plane remains responsible for persistence and selection.
+
+**Example request:**
+
+```json
+{
+  "source": "BPE",
+  "source_ref": "bpe_order_177879",
+  "tenant_id": "default",
+  "trace_id": "trace_1778791664236",
+  "order_id": "17",
+  "job_id": "17",
+  "currency": "EUR",
+  "target_margin_pct": 30,
+
+  "product_type": "book",
+  "quantity": 1000,
+  "copies": 1000,
+  "format": "170x240",
+  "book_size": "A5",
+  "pages": 240,
+  "interior_pages": 240,
+  "binding": "softcover",
+  "binding_method": "softcover",
+  "paper": "90gsm offset",
+  "paper_weight_interior": 90,
+  "cover": "300gsm gloss",
+  "paper_weight_cover": 300,
+  "interior_print": "4/4",
+  "cover_print": "4/0",
+  "delivery_country": "ES"
+}
+```
+
+**Example response:**
+
+```json
+{
+  "ok": true,
+  "engine": "v3.0",
+  "source": "BPE",
+  "source_ref": "bpe_order_177879",
+  "tenant_id": "default",
+  "trace_id": "trace_1778791664236",
+  "order_id": "17",
+  "job_id": "17",
+  "currency": "EUR",
+  "params": {},
+  "selected_offer": {
+    "printer_id": "adv-2025",
+    "printer_name": "Adv 2025",
+    "production_cost": 1825.07,
+    "suggested_price": 2607.2429,
+    "estimated_margin": 782.1729,
+    "margin_pct": 30,
+    "lead_time_days": 7,
+    "offer_rank": 1,
+    "offer_priority_score": 100,
+    "offer_status": "SENT",
+    "offer_selected": false
+  },
+  "offers": [],
+  "count": 3,
+  "warnings": [],
+  "errors": {}
+}
+```
+
+> [!NOTE]
+> `selected_offer` is a recommendation based on cost and capability. Control Plane remains the authoritative owner of final selection and operational state.
+
 ---
 
 Copyright 2026 PrintPrice OS

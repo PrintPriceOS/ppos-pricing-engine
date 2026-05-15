@@ -5,6 +5,7 @@ fastify.register(require('@fastify/cors'));
 fastify.register(require('@fastify/helmet'));
 
 fastify.register(require('./routes/estimates'), { prefix: '/api' });
+fastify.register(require('./routes/marketplace-offers'), { prefix: '/api' });
 
 fastify.get('/health', async () => ({
     status: 'UP',

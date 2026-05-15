@@ -114,6 +114,40 @@ function assert(label, condition, detail = '') {
 
     // ---------------------------------------------------------------------------
 
+    console.log('\n[7] MarketplaceOfferMapper — Control Plane compatibility');
+    const { mapEstimateToMarketplaceOffers } = require('../src/MarketplaceOfferMapper');
+
+    const estimateResult = service.estimate({
+        copies: 1000,
+        interior_pages: 128,
+        book_size: 'A5',
+        binding_method: 'hardcover',
+    });
+
+    const context = {
+        source: 'BPE',
+        tenant_id: 'test-tenant',
+        order_id: '123',
+        target_margin_pct: 30
+    };
+
+    const mapped = mapEstimateToMarketplaceOffers(estimateResult, context);
+
+    assert('mapped ok', mapped.ok === true);
+    assert('mapped engine version', mapped.engine === 'v3.0');
+    assert('mapped tenant_id', mapped.tenant_id === 'test-tenant');
+    assert('mapped offers count', mapped.offers.length > 0);
+    assert('selected_offer exists', !!mapped.selected_offer);
+    assert('selected_offer is house-1', mapped.selected_offer.printer_id === 'ci-test-house');
+    assert('suggested_price logic (margin 30%)',
+        Math.abs(mapped.selected_offer.suggested_price - (mapped.selected_offer.production_cost / 0.7)) < 0.01);
+    assert('offer_rank is 1', mapped.selected_offer.offer_rank === 1);
+    assert('offer_priority_score is 100', mapped.selected_offer.offer_priority_score === 100);
+    assert('offer_selected is false by default', mapped.selected_offer.offer_selected === false);
+    assert('offer_status is SENT by default', mapped.selected_offer.offer_status === 'SENT');
+
+    // ---------------------------------------------------------------------------
+
     console.log(`\n${'─'.repeat(40)}`);
     console.log(`Results: ${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
