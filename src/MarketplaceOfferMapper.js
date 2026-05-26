@@ -83,12 +83,12 @@ function mapToOffer(house, context, rank, isRecommended) {
     const rawProdDays = toFiniteNumber(house.production_lead_days);
     const rawShipDays = toFiniteNumber(house.shipping_days);
     
-    const productionLeadDays = rawProdDays !== null ? Math.ceil(rawProdDays) : null;
-    const shippingDays = rawShipDays !== null ? Math.ceil(rawShipDays) : null;
+    const productionLeadDays = rawProdDays !== null ? Math.ceil(rawProdDays) : 0;
+    const shippingDays = rawShipDays !== null ? Math.ceil(rawShipDays) : 0;
     
-    let leadTimeDays = null;
+    let leadTimeDays = 0;
 
-    if (productionLeadDays !== null && shippingDays !== null) {
+    if (productionLeadDays !== 0 || shippingDays !== 0) {
         leadTimeDays = productionLeadDays + shippingDays;
     } else {
         const deliveryStr = String(house.estimated_delivery_time || house.delivery_time || '');
@@ -107,26 +107,33 @@ function mapToOffer(house, context, rank, isRecommended) {
     const offerStatus = isAccepted ? "ACCEPTED" : "SENT";
     const offerSelected = isAccepted;
 
+    const printerName = house.print_house || house.name || printerId || "Unknown Printer";
+
     return {
         id: null,
         printer_id: printerId,
-        printer_name: house.print_house || house.name || printerId,
+        printer_name: printerName,
         house_id: printerId,
         machine_id: house.machine_id || null,
         quote_id: context.quote_id || null,
         currency: context.currency || "EUR",
         production_cost: productionCost !== null ? Number(productionCost.toFixed(4)) : null,
         suggested_price: suggestedPrice !== null ? Number(suggestedPrice.toFixed(4)) : null,
+        total_price: suggestedPrice !== null ? Number(suggestedPrice.toFixed(4)) : null,
+        total_cost: productionCost !== null ? Number(productionCost.toFixed(4)) : null,
         estimated_margin: estimatedMargin !== null ? Number(estimatedMargin.toFixed(4)) : null,
         margin_pct: Number(marginPct.toFixed(4)),
         lead_time_days: leadTimeDays,
         production_lead_days: productionLeadDays,
         shipping_days: shippingDays,
+        estimated_delivery_time: house.estimated_delivery_time || house.delivery_time || `${leadTimeDays} days`,
         delivery_time: house.estimated_delivery_time || house.delivery_time || null,
         offer_rank: rank,
         offer_priority_score: priorityScore,
         offer_status: offerStatus,
         offer_selected: offerSelected,
+        breakdown: (house.lines || []).map(l => ({ label: l.item || l.label || "", amount: l.line_total != null ? Number(l.line_total) : (l.value != null ? Number(l.value) : 0) })),
+        source: "BPE_REAL_PRICING",
         raw_estimate: house,
     };
 }
