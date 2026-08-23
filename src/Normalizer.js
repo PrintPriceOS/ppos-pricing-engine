@@ -360,7 +360,7 @@ class Normalizer {
 
         // --- paper weights ---
         out.paper_weight_interior = Math.max(70, Math.min(250, getInt(p, 'paper_weight_interior', DEFAULTS.paper_weight_interior)));
-        out.paper_weight_cover = Math.max(135, Math.min(350, getInt(p, 'paper_weight_cover', DEFAULTS.paper_weight_cover)));
+        out.paper_weight_cover = Math.max(120, Math.min(400, getInt(p, 'paper_weight_cover', DEFAULTS.paper_weight_cover)));
         out.paper_weight_endpapers = Math.max(90, Math.min(250, getInt(p, 'paper_weight_endpapers', getInt(p, 'endpapers_weight', DEFAULTS.paper_weight_endpapers))));
 
         // --- extras ---
