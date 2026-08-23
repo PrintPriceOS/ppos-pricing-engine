@@ -114,7 +114,53 @@ function assert(label, condition, detail = '') {
 
     // ---------------------------------------------------------------------------
 
-    console.log('\n[7] MarketplaceOfferMapper — Control Plane compatibility');
+    console.log('\n[7] EstimatesService — preserves 120gsm cover weight');
+
+    const result4 = service.estimate({
+        copies: 500,
+        interior_pages: 320,
+        book_size: 'A5',
+        binding_method: 'thread sewn',
+        interior_print: '2/2',
+        cover_print: '4/0',
+        delivery_country: 'ES',
+        paper_weight_interior: 80,
+        paper_weight_cover: 120,
+    });
+
+    assert('ok with 120gsm cover', result4.ok === true);
+    assert(
+        'preserves paper_weight_cover = 120',
+        result4.params.paper_weight_cover === 120,
+        `got=${result4.params.paper_weight_cover}`
+    );
+
+    // ---------------------------------------------------------------------------
+
+    console.log('\n[8] EstimatesService — preserves 400gsm cover weight');
+
+    const result5 = service.estimate({
+        copies: 500,
+        interior_pages: 320,
+        book_size: 'A5',
+        binding_method: 'thread sewn',
+        interior_print: '2/2',
+        cover_print: '4/0',
+        delivery_country: 'ES',
+        paper_weight_interior: 80,
+        paper_weight_cover: 400,
+    });
+
+    assert('ok with 400gsm cover', result5.ok === true);
+    assert(
+        'preserves paper_weight_cover = 400',
+        result5.params.paper_weight_cover === 400,
+        `got=${result5.params.paper_weight_cover}`
+    );
+
+    // ---------------------------------------------------------------------------
+
+    console.log('\n[9] MarketplaceOfferMapper — Control Plane compatibility');
     const { mapEstimateToMarketplaceOffers } = require('../src/MarketplaceOfferMapper');
 
     const estimateResult = service.estimate({
