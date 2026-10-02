@@ -197,18 +197,32 @@ function assert(label, condition, detail = '') {
     assert('Fährmann hardcover binding cost is 1.25 €', fahrmannLiveEstimate.debug.components.cost_binding === 1.25);
     assert('Fährmann total cost is exactly 506.13 €', fahrmannLiveEstimate.total_cost === 506.13);
 
-    // Test 8.2: Unprinted cover (cover_print = "6" or unprinted) evaluates to 0.0 cover print cost
-    const unprintedCoverEstimate = buildPrice({
+    // Test 8.2: Permitted aliases for unprinted cover (all result in cost_print_cov === 0)
+    const unprintedAliases = ['6/0', '6-0', '0/0', '0-0', '6', '0', 'none', 'unprinted'];
+    for (const alias of unprintedAliases) {
+        const est = buildPrice({
+            copies: 1000,
+            interior_pages: 128,
+            cover_print: alias,
+            finishing_options: 'none',
+            binding_method: 'perfect bound'
+        }, testHouse);
+        assert(`unprinted cover alias "${alias}" evaluates to 0.0 print cost`, est.debug.components.cost_print_cov === 0);
+    }
+
+    // Test 8.3: Unknown cover print mode like "2/0" defaults to "4/0" and is NOT treated as unprinted
+    const unknownModeEst = buildPrice({
         copies: 1000,
         interior_pages: 128,
-        cover_print: '6',
+        cover_print: '2/0',
         finishing_options: 'none',
         binding_method: 'perfect bound'
-    }, testHouse);
-    assert('unprinted cover evaluates to 0.0 print cost', unprintedCoverEstimate.debug.components.cost_print_cov === 0);
+    }, node329House);
+    assert('unknown cover_print "2/0" defaults to 4/0 and evaluates cost > 0', unknownModeEst.debug.components.cost_print_cov > 0);
 
-    // Test 8.3: Hardcover with printed endpapers (4/0) when interior print cost is 0.0
-    const printedEndsEstimate = buildPrice({
+    // Test 8.4: Endpapers math verification (50.0 fixed + Math.ceil(copies/1000) * 10.0 var)
+    // For 1,000 copies: 50.0 + 1 * 10.0 = 60.0 €
+    const printedEnds1000 = buildPrice({
         copies: 1000,
         interior_pages: 128,
         interior_print: '4/4',
@@ -216,19 +230,40 @@ function assert(label, condition, detail = '') {
         endpapers: 'standard',
         endpapers_print: '4/0'
     }, node329House);
-    assert('printed endpapers cost evaluates independently of interior print cost (60.0 €)', printedEndsEstimate.lines.find(l => l.item === 'Endpapers print').line_total === 60);
+    assert('hardcover printed endpapers (1000 copies) is 60.0 € (50 + 1*10)', printedEnds1000.lines.find(l => l.item === 'Endpapers print').line_total === 60);
 
-    // Test 8.4: Hardcover with endpapers="none" or unprinted endpapers evaluates to 0.0
-    const noEndsEstimate = buildPrice({
+    // For 3,000 copies: 50.0 + 3 * 10.0 = 80.0 €
+    const printedEnds3000 = buildPrice({
+        copies: 3000,
+        interior_pages: 128,
+        interior_print: '4/4',
+        binding_method: 'hardcover',
+        endpapers: 'standard',
+        endpapers_print: '4/0'
+    }, node329House);
+    assert('hardcover printed endpapers (3000 copies) is 80.0 € (50 + 3*10)', printedEnds3000.lines.find(l => l.item === 'Endpapers print').line_total === 80);
+
+    // Test 8.5: Guard case - hardcover with unprinted endpapers (endpapers_print="none")
+    const unprintedEndsHc = buildPrice({
+        copies: 1000,
+        interior_pages: 128,
+        binding_method: 'hardcover',
+        endpapers: 'standard',
+        endpapers_print: 'none'
+    }, node329House);
+    assert('hardcover with unprinted endpapers (endpapers_print="none") is 0.0 €', unprintedEndsHc.lines.find(l => l.item === 'Endpapers print').line_total === 0);
+
+    // Test 8.6: Guard case - endpapers="none" even if endpapers_print="4/0" is supplied
+    const noEndsEst = buildPrice({
         copies: 1000,
         interior_pages: 128,
         binding_method: 'hardcover',
         endpapers: 'none',
-        endpapers_print: 'none'
+        endpapers_print: '4/0'
     }, node329House);
-    assert('endpapers="none" evaluates to 0.0 print cost', noEndsEstimate.lines.find(l => l.item === 'Endpapers print').line_total === 0);
+    assert('endpapers="none" overrides endpapers_print="4/0" to 0.0 €', noEndsEst.lines.find(l => l.item === 'Endpapers print').line_total === 0);
 
-    // Test 8.5: Non-hardcover binding (e.g., perfect bound) does not add unrequested endpaper costs
+    // Test 8.7: Guard case - non-hardcover binding (e.g., perfect bound) does not add endpaper costs
     const pbEstimate = buildPrice({
         copies: 1000,
         interior_pages: 128,

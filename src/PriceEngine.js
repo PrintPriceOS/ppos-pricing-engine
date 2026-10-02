@@ -243,7 +243,7 @@ function normalizeParams(p) {
     if (/4\/0|4-0/.test(cp)) p.cover_print = '4/0';
     else if (/4\/4|4-4|cmyk|color/.test(cp)) p.cover_print = '4/4';
     else if (/1\/0|1-0|bw|black/.test(cp)) p.cover_print = '1/0';
-    else if (/6\/0|6-0|0\/0|0-0|6|0|none|unprinted/.test(cp)) p.cover_print = '6/0';
+    else if (/^(6\/0|6-0|0\/0|0-0|6|0|none|unprinted)$/i.test(cp.trim())) p.cover_print = '6/0';
     else p.cover_print = '4/0';
 
     // Pages
