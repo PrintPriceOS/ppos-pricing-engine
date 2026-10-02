@@ -243,6 +243,7 @@ function normalizeParams(p) {
     if (/4\/0|4-0/.test(cp)) p.cover_print = '4/0';
     else if (/4\/4|4-4|cmyk|color/.test(cp)) p.cover_print = '4/4';
     else if (/1\/0|1-0|bw|black/.test(cp)) p.cover_print = '1/0';
+    else if (/6\/0|6-0|0\/0|0-0|6|0|none|unprinted/.test(cp)) p.cover_print = '6/0';
     else p.cover_print = '4/0';
 
     // Pages
@@ -404,11 +405,11 @@ function bindingCost(rates, p, copies, signature, sectArr) {
  * Cover print cost
  * ---------------------------------------------------------------------- */
 
-function coverPrintCost(costPrintInt, rates, p, copies) {
+function coverPrintCost(rates, p, copies) {
     const coverPrintInt = parseInt(String(p.cover_print ?? '')[0] ?? '0', 10);
     let total = 0.0;
 
-    if (costPrintInt === 0.0 || coverPrintInt === 6) return total;
+    if (coverPrintInt === 6) return total;
 
     const colorFixed = Number(arrGet(rates.cover_fixed_by_colours ?? {}, coverPrintInt, 0));
     const colorVar = Number(arrGet(rates.cover_var_per_1000_by_colours ?? {}, coverPrintInt, 0));
@@ -478,11 +479,11 @@ function interiorPrintCost(rates, p, sectArr, copies, signature) {
  * Endpapers print cost
  * ---------------------------------------------------------------------- */
 
-function endpapersCost(costPrintInt, rates, p, copies) {
+function endpapersCost(rates, p, copies) {
     const bindingMethodInt = getBindingCode(String(p.binding_method), 'default');
     let total = 0.0;
 
-    if (costPrintInt === 0.0 || bindingMethodInt !== 4) return total;
+    if (bindingMethodInt !== 4) return total;
 
     const epPrintStr = String(p.endpapers_print ?? '');
     let printingEnds = 0, printingEndsRev = 0;
@@ -754,8 +755,8 @@ function buildPrice(params, house) {
 
     // Cost components
     const costPrintInt = interiorPrintCost(rates, p, sectArr, copies, sig);
-    const costPrintCov = coverPrintCost(costPrintInt, rates, p, copies);
-    const endpaper = endpapersCost(costPrintInt, rates, p, copies);
+    const costPrintCov = coverPrintCost(rates, p, copies);
+    const endpaper = endpapersCost(rates, p, copies);
     const costBinding = bindingCost(rates, p, copies, sig, sectArr);
     const extraCost = extraCosts(p, copies, sig, sectArr);
 

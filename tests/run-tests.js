@@ -148,6 +148,98 @@ function assert(label, condition, detail = '') {
 
     // ---------------------------------------------------------------------------
 
+    console.log('\n[8] PriceEngine — Decoupled Cover & Endpapers Print Cost');
+    const { buildPrice } = require('../src/PriceEngine');
+
+    // Live node-329a3bc4 rates snapshot
+    const liveRatesNode329a3bc4 = {
+        paper_price_interior_by_kilo: { munken: 0, offset: 1.5 },
+        paper_price_cover_by_kilo: { mc: 4.0756 },
+        interior_full_colour_fixed: { '24p': 0 },
+        interior_full_colour_var: { '24p': 0 },
+        cover_fixed_by_colours: { '4': 134.8284 },
+        cover_var_per_1000_by_colours: { '4': 25.5357 },
+        binding_hc_fixed_by_sections: { '9': 1.25 },
+        binding_hc_var_per_1000_by_sections: { '9': 0 },
+        endpaper_fixed_by_colours: { '4': 50.0 },
+        endpaper_var_per_1000_by_colours: { '4': 10.0 }
+    };
+
+    const node329House = {
+        id: 'node-329a3bc4',
+        name: 'philologica.ai Printhouse',
+        signatures: [24],
+        rates: liveRatesNode329a3bc4
+    };
+
+    // Test 8.1: Printed cover (4/0) with interior print cost = 0.0 (Munken=0 / 24p=0)
+    const fahrmannLiveEstimate = buildPrice({
+        copies: 3000,
+        book_width_mm: 139,
+        book_height_mm: 212,
+        interior_pages: 216,
+        binding_method: 'hardcover',
+        paper_type_interior: 'munken',
+        paper_weight_interior: 90,
+        interior_print: '4/4',
+        cover_print: '4/0',
+        paper_type_cover: 'mc',
+        paper_weight_cover: 130,
+        finishing_options: 'none',
+        endpapers: 'none',
+        endpapers_print: 'none',
+        delivery_country: 'ES'
+    }, node329House);
+
+    assert('Fährmann interior print cost is 0.0', fahrmannLiveEstimate.debug.components.cost_print_int === 0);
+    assert('Fährmann cover paper cost is 293.44 €', fahrmannLiveEstimate.debug.components.cost_paper_cov === 293.44);
+    assert('Fährmann cover print cost is evaluated independently (211.44 €)', fahrmannLiveEstimate.debug.components.cost_print_cov === 211.44);
+    assert('Fährmann hardcover binding cost is 1.25 €', fahrmannLiveEstimate.debug.components.cost_binding === 1.25);
+    assert('Fährmann total cost is exactly 506.13 €', fahrmannLiveEstimate.total_cost === 506.13);
+
+    // Test 8.2: Unprinted cover (cover_print = "6" or unprinted) evaluates to 0.0 cover print cost
+    const unprintedCoverEstimate = buildPrice({
+        copies: 1000,
+        interior_pages: 128,
+        cover_print: '6',
+        finishing_options: 'none',
+        binding_method: 'perfect bound'
+    }, testHouse);
+    assert('unprinted cover evaluates to 0.0 print cost', unprintedCoverEstimate.debug.components.cost_print_cov === 0);
+
+    // Test 8.3: Hardcover with printed endpapers (4/0) when interior print cost is 0.0
+    const printedEndsEstimate = buildPrice({
+        copies: 1000,
+        interior_pages: 128,
+        interior_print: '4/4',
+        binding_method: 'hardcover',
+        endpapers: 'standard',
+        endpapers_print: '4/0'
+    }, node329House);
+    assert('printed endpapers cost evaluates independently of interior print cost (60.0 €)', printedEndsEstimate.lines.find(l => l.item === 'Endpapers print').line_total === 60);
+
+    // Test 8.4: Hardcover with endpapers="none" or unprinted endpapers evaluates to 0.0
+    const noEndsEstimate = buildPrice({
+        copies: 1000,
+        interior_pages: 128,
+        binding_method: 'hardcover',
+        endpapers: 'none',
+        endpapers_print: 'none'
+    }, node329House);
+    assert('endpapers="none" evaluates to 0.0 print cost', noEndsEstimate.lines.find(l => l.item === 'Endpapers print').line_total === 0);
+
+    // Test 8.5: Non-hardcover binding (e.g., perfect bound) does not add unrequested endpaper costs
+    const pbEstimate = buildPrice({
+        copies: 1000,
+        interior_pages: 128,
+        binding_method: 'perfect bound',
+        endpapers: 'standard',
+        endpapers_print: '4/0'
+    }, node329House);
+    assert('non-hardcover binding evaluates endpapers cost to 0.0', pbEstimate.lines.find(l => l.item === 'Endpapers print').line_total === 0);
+
+    // ---------------------------------------------------------------------------
+
     console.log(`\n${'─'.repeat(40)}`);
     console.log(`Results: ${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
