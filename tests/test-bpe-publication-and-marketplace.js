@@ -323,6 +323,50 @@ function clone(obj) {
     });
     assert('printer node mismatch returns 400', nodeMismatchRes.statusCode === 400);
 
+    // C1. Unconfigured tenant mapping in BPE
+    const savedTenantId = mockMongoHouses[0].tenant_id;
+    mockMongoHouses[0].tenant_id = null;
+    const unconfigTenantRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/revisions/publish',
+        headers: { 'X-BPE-Service-Token': 'test_secret_service_token_12345' },
+        payload: {
+            tenant_id: 'tenant_alpha',
+            printer_node_id: 'node_alpha',
+            bpe_printhouse_id: testHouse.id,
+            revision_id: 'rev_002',
+            accepted_patch_checksum: 'sha256:patch_002',
+            version: 2,
+            rates: clone(testHouse.rates)
+        }
+    });
+    assert('unconfigured tenant mapping returns 403', unconfigTenantRes.statusCode === 403);
+    assert('unconfigured tenant error code is TENANT_MAPPING_UNCONFIGURED', JSON.parse(unconfigTenantRes.payload).error === 'TENANT_MAPPING_UNCONFIGURED');
+    mockMongoHouses[0].tenant_id = savedTenantId;
+
+    // C2. Unconfigured printer node mapping in BPE
+    const savedNodeId = mockMongoHouses[0].printer_node_id;
+    mockMongoHouses[0].printer_node_id = null;
+    mockMongoHouses[0].control_plane_node_id = null;
+    mockMongoHouses[0].node_id = null;
+    const unconfigNodeRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/revisions/publish',
+        headers: { 'X-BPE-Service-Token': 'test_secret_service_token_12345' },
+        payload: {
+            tenant_id: 'tenant_alpha',
+            printer_node_id: 'node_alpha',
+            bpe_printhouse_id: testHouse.id,
+            revision_id: 'rev_002',
+            accepted_patch_checksum: 'sha256:patch_002',
+            version: 2,
+            rates: clone(testHouse.rates)
+        }
+    });
+    assert('unconfigured printer node mapping returns 400', unconfigNodeRes.statusCode === 400);
+    assert('unconfigured node error code is PRINTER_NODE_MAPPING_UNCONFIGURED', JSON.parse(unconfigNodeRes.payload).error === 'PRINTER_NODE_MAPPING_UNCONFIGURED');
+    mockMongoHouses[0].printer_node_id = savedNodeId;
+
     // D. Mongo failure handles error and closes client
     simulateMongoError = true;
     const mongoFailRes = await app.inject({
@@ -420,6 +464,26 @@ function clone(obj) {
     const idempBody = JSON.parse(idempotentRes.payload);
     assert('idempotent replay indicates already_published', idempBody.already_published === true);
     assert('idempotent replay status is PUBLISHED', idempBody.status === 'PUBLISHED');
+
+    // G1. Replay attempt with same revision and patch checksum but conflicting rates payload -> rejected 409
+    const conflictingRates = clone(modifiedRates);
+    conflictingRates.paper_price_cover_by_kilo.mc = 999.99; // Tampered rate
+    const replayConflictRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/revisions/publish',
+        headers: { 'X-BPE-Service-Token': 'test_secret_service_token_12345' },
+        payload: {
+            tenant_id: 'tenant_alpha',
+            printer_node_id: 'node_alpha',
+            bpe_printhouse_id: testHouse.id,
+            revision_id: 'rev_002',
+            accepted_patch_checksum: 'sha256:verified_patch_checksum_002',
+            version: 2,
+            rates: conflictingRates
+        }
+    });
+    assert('conflicting rates replay returns 409', replayConflictRes.statusCode === 409);
+    assert('conflicting rates error code is RATES_CHECKSUM_MISMATCH', JSON.parse(replayConflictRes.payload).error === 'RATES_CHECKSUM_MISMATCH');
 
     // H. Outdated revision rejection (version 1 attempted after version 2)
     const outdatedRes = await app.inject({

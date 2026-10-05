@@ -285,29 +285,56 @@ async function marketplaceOffersRoutes(fastify, options) {
                 });
             }
 
-            // Tenant isolation check
-            if (house.tenant_id && String(house.tenant_id) !== String(tenant_id)) {
+            // 1. Strict Tenant Mapping Check: must be pre-configured and match
+            if (!house.tenant_id) {
+                return reply.status(403).send({
+                    ok: false,
+                    error: 'TENANT_MAPPING_UNCONFIGURED',
+                    details: `Printhouse "${bpe_printhouse_id}" has no previously established tenant mapping in BPE`
+                });
+            }
+
+            if (String(house.tenant_id) !== String(tenant_id)) {
                 return reply.status(403).send({
                     ok: false,
                     error: 'TENANT_MISMATCH',
-                    details: `Printhouse ${bpe_printhouse_id} belongs to tenant ${house.tenant_id}, publication attempted by ${tenant_id}`
+                    details: `Printhouse "${bpe_printhouse_id}" belongs to tenant "${house.tenant_id}", publication attempted for tenant "${tenant_id}"`
                 });
             }
 
-            // Printer node mapping check
+            // 2. Strict Printer Node Mapping Check: must be pre-configured and match
             const mappedNodeId = house.printer_node_id || house.control_plane_node_id || house.node_id;
-            if (mappedNodeId && String(mappedNodeId) !== String(printer_node_id)) {
+            if (!mappedNodeId) {
+                return reply.status(400).send({
+                    ok: false,
+                    error: 'PRINTER_NODE_MAPPING_UNCONFIGURED',
+                    details: `Printhouse "${bpe_printhouse_id}" has no previously established printer node mapping in BPE`
+                });
+            }
+
+            if (String(mappedNodeId) !== String(printer_node_id)) {
                 return reply.status(400).send({
                     ok: false,
                     error: 'PRINTER_NODE_MISMATCH',
-                    details: `Printhouse ${bpe_printhouse_id} is mapped to node ${mappedNodeId}, publication specified ${printer_node_id}`
+                    details: `Printhouse "${bpe_printhouse_id}" is mapped to node "${mappedNodeId}", publication specified "${printer_node_id}"`
                 });
             }
 
-            // Idempotency: exact same revision and patch checksum already published
+            // 3. Idempotency Check: exact same revision, patch checksum, AND rates checksum
             if (house.accepted_patch_checksum === accepted_patch_checksum && String(house.published_revision_id) === String(revision_id)) {
-                fastify.log.info({ bpe_printhouse_id, revision_id, checksum: accepted_patch_checksum }, '[BPE][REVISION-PUBLISH] Idempotent publication replay detected');
-                const storedRatesChecksum = house.rates_checksum || computeRatesChecksum(house.rates);
+                const storedRatesCalculatedChecksum = computeRatesChecksum(house.rates);
+                const storedRatesChecksum = house.rates_checksum || storedRatesCalculatedChecksum;
+
+                // If rates differ, reject even if revision and patch checksum match!
+                if (calculatedRatesChecksum !== storedRatesCalculatedChecksum) {
+                    return reply.status(409).send({
+                        ok: false,
+                        error: 'RATES_CHECKSUM_MISMATCH',
+                        details: `Identical revision "${revision_id}" and patch checksum submitted with conflicting rates payload (expected: ${storedRatesCalculatedChecksum}, got: ${calculatedRatesChecksum})`
+                    });
+                }
+
+                fastify.log.info({ bpe_printhouse_id, revision_id, checksum: accepted_patch_checksum, rates_checksum: storedRatesChecksum }, '[BPE][REVISION-PUBLISH] Idempotent publication replay verified');
 
                 // Broadcast to ensure all active in-memory repositories have latest state
                 Repository.broadcastRatesUpdate(bpe_printhouse_id, house.rates, {
@@ -315,8 +342,8 @@ async function marketplaceOffersRoutes(fastify, options) {
                     rates_checksum: storedRatesChecksum,
                     revision_id,
                     version: house.version,
-                    printer_node_id,
-                    tenant_id
+                    printer_node_id: house.printer_node_id,
+                    tenant_id: house.tenant_id
                 });
 
                 return reply.send({
@@ -338,7 +365,7 @@ async function marketplaceOffersRoutes(fastify, options) {
                 });
             }
 
-            // Version check: prevent older revision from overwriting newer publication
+            // 4. Version check: prevent older revision from overwriting newer publication
             const currentVersion = Number(house.version) || 0;
             const incomingVersion = Number(version) || 1;
 
@@ -358,7 +385,7 @@ async function marketplaceOffersRoutes(fastify, options) {
                 });
             }
 
-            // Update in MongoDB with atomic version guard
+            // 5. Update in MongoDB with atomic version guard (do not mutate established tenant or node mappings!)
             const updateResult = await printhousesColl.updateOne(
                 {
                     _id: house._id,
@@ -374,8 +401,6 @@ async function marketplaceOffersRoutes(fastify, options) {
                         accepted_patch_checksum,
                         rates_checksum: calculatedRatesChecksum,
                         published_revision_id: revision_id,
-                        printer_node_id,
-                        tenant_id,
                         version: incomingVersion,
                         updated_at: new Date()
                     }
