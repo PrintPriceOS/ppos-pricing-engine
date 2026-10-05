@@ -279,6 +279,95 @@ async function marketplaceOffersRoutes(fastify, options) {
             });
         }
     });
+
+    /**
+     * POST /api/marketplace/revisions/publish
+     * Receives accepted pricing revision from Control Plane, updates MongoDB, and refreshes in-memory rates.
+     */
+    fastify.post('/marketplace/revisions/publish', async (request, reply) => {
+        const authHeader = request.headers['x-bpe-service-token'] || request.headers['authorization'];
+        const configuredToken = process.env.PPOS_BPE_SERVICE_TOKEN || process.env.PPOS_CONTROL_TOKEN || 'bpe-internal-service-token';
+
+        if (authHeader) {
+            const token = authHeader.replace(/^Bearer\s+/i, '');
+            if (token !== configuredToken) {
+                return reply.status(401).send({ ok: false, error: 'Unauthorized: Invalid BPE publication service token' });
+            }
+        }
+
+        const body = request.body || {};
+        const {
+            tenant_id,
+            printer_node_id,
+            bpe_printhouse_id,
+            revision_id,
+            accepted_patch_checksum,
+            version,
+            rates
+        } = body;
+
+        if (!bpe_printhouse_id || !accepted_patch_checksum || !rates) {
+            return reply.status(400).send({
+                ok: false,
+                error: 'MISSING_REQUIRED_FIELDS',
+                details: 'bpe_printhouse_id, accepted_patch_checksum, and rates are required'
+            });
+        }
+
+        fastify.log.info({
+            tenant_id,
+            printer_node_id,
+            bpe_printhouse_id,
+            revision_id,
+            checksum: accepted_patch_checksum
+        }, '[BPE][REVISION-PUBLISH] Ingesting rate publication from Control Plane');
+
+        // 1. Update in MongoDB if configured
+        if (process.env.MONGODB_URI) {
+            try {
+                const { MongoClient } = require('mongodb');
+                const client = new MongoClient(process.env.MONGODB_URI);
+                await client.connect();
+                const db = client.db();
+                await db.collection('printhouses').updateOne(
+                    { $or: [{ id: bpe_printhouse_id }, { house_id: bpe_printhouse_id }, { slug: bpe_printhouse_id }] },
+                    {
+                        $set: {
+                            rates,
+                            accepted_patch_checksum,
+                            published_revision_id: revision_id,
+                            version: version || 1,
+                            updated_at: new Date()
+                        }
+                    },
+                    { upsert: false }
+                );
+                await client.close();
+            } catch (mongoErr) {
+                fastify.log.warn({ error: mongoErr.message }, '[BPE][REVISION-PUBLISH] MongoDB persistence warning');
+            }
+        }
+
+        // 2. Refresh in-memory cache in repository so subsequent calculations immediately use updated rates
+        const cached = repository._cache.find(h => h.id === bpe_printhouse_id || h.house_id === bpe_printhouse_id);
+        if (cached) {
+            cached.rates = rates;
+            cached.accepted_patch_checksum = accepted_patch_checksum;
+            cached.published_revision_id = revision_id;
+            cached.version = version || 1;
+        }
+
+        return {
+            ok: true,
+            status: 'PUBLISHED',
+            checksum: accepted_patch_checksum,
+            accepted_patch_checksum,
+            bpe_printhouse_id,
+            revision_id,
+            version: version || 1,
+            published_at: new Date().toISOString()
+        };
+    });
 }
 
 module.exports = marketplaceOffersRoutes;
