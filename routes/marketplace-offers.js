@@ -285,14 +285,31 @@ async function marketplaceOffersRoutes(fastify, options) {
      * Receives accepted pricing revision from Control Plane, updates MongoDB, and refreshes in-memory rates.
      */
     fastify.post('/marketplace/revisions/publish', async (request, reply) => {
-        const authHeader = request.headers['x-bpe-service-token'] || request.headers['authorization'];
-        const configuredToken = process.env.PPOS_BPE_SERVICE_TOKEN || process.env.PPOS_CONTROL_TOKEN || 'bpe-internal-service-token';
+        const configuredToken = (process.env.PPOS_BPE_SERVICE_TOKEN || '').trim();
+        if (!configuredToken) {
+            return reply.status(503).send({
+                ok: false,
+                error: 'BPE_PUBLICATION_DISABLED',
+                details: 'BPE publication service token (PPOS_BPE_SERVICE_TOKEN) is not configured on this server'
+            });
+        }
 
-        if (authHeader) {
-            const token = authHeader.replace(/^Bearer\s+/i, '');
-            if (token !== configuredToken) {
-                return reply.status(401).send({ ok: false, error: 'Unauthorized: Invalid BPE publication service token' });
-            }
+        const authHeader = request.headers['x-bpe-service-token'] || request.headers['authorization'];
+        if (!authHeader) {
+            return reply.status(401).send({
+                ok: false,
+                error: 'UNAUTHORIZED',
+                details: 'Missing BPE publication service token'
+            });
+        }
+
+        const token = String(authHeader).replace(/^Bearer\s+/i, '').trim();
+        if (token !== configuredToken) {
+            return reply.status(401).send({
+                ok: false,
+                error: 'UNAUTHORIZED',
+                details: 'Invalid BPE publication service token'
+            });
         }
 
         const body = request.body || {};
