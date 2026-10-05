@@ -343,7 +343,9 @@ async function marketplaceOffersRoutes(fastify, options) {
                     revision_id,
                     version: house.version,
                     printer_node_id: house.printer_node_id,
-                    tenant_id: house.tenant_id
+                    tenant_id: house.tenant_id,
+                    status: house.status,
+                    active: house.active
                 });
 
                 return reply.send({
@@ -450,7 +452,9 @@ async function marketplaceOffersRoutes(fastify, options) {
                 revision_id,
                 version: incomingVersion,
                 printer_node_id,
-                tenant_id
+                tenant_id,
+                status: house.status,
+                active: house.active
             });
 
             fastify.log.info({

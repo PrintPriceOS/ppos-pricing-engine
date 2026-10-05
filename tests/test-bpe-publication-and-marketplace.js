@@ -566,6 +566,138 @@ function clone(obj) {
     const newPriceEstimates = bodyAfterEstimates.selected_print_house.total_cost;
     assert('estimates route consumes published rates', newPriceEstimates === newPriceMarketplace);
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // 6. SUSPENSION ENFORCEMENT, PUBLICATION ON SUSPENDED HOUSE & LEGACY COMPATIBILITY
+    // ──────────────────────────────────────────────────────────────────────────
+    console.log('\n[6] Suspension Enforcement, Publication on Suspended House & Legacy Compatibility');
+
+    // Unit checks for isExplicitlySuspendedOrDisabled
+    assert('isExplicitlySuspendedOrDisabled identifies SUSPENDED', Repository.isExplicitlySuspendedOrDisabled({ status: 'SUSPENDED' }) === true);
+    assert('isExplicitlySuspendedOrDisabled identifies suspended lowercase', Repository.isExplicitlySuspendedOrDisabled({ status: 'suspended' }) === true);
+    assert('isExplicitlySuspendedOrDisabled identifies DELETED', Repository.isExplicitlySuspendedOrDisabled({ status: 'DELETED' }) === true);
+    assert('isExplicitlySuspendedOrDisabled identifies DISABLED', Repository.isExplicitlySuspendedOrDisabled({ status: 'DISABLED' }) === true);
+    assert('isExplicitlySuspendedOrDisabled identifies disabled: true', Repository.isExplicitlySuspendedOrDisabled({ disabled: true }) === true);
+    assert('isExplicitlySuspendedOrDisabled identifies active: false', Repository.isExplicitlySuspendedOrDisabled({ active: false }) === true);
+    assert('isExplicitlySuspendedOrDisabled preserves legacy without status', Repository.isExplicitlySuspendedOrDisabled({ name: 'Legacy' }) === false);
+    assert('isExplicitlySuspendedOrDisabled preserves ACTIVE', Repository.isExplicitlySuspendedOrDisabled({ status: 'ACTIVE' }) === false);
+
+    // Seed suspended house and legacy house in mockMongoHouses
+    const suspendedHouseId = 'ph_suspended_real_test';
+    const suspendedNodeId = 'node-329a3bc4';
+    const suspendedTenantId = 'ph-707a5869';
+    const suspendedRates = clone(testHouse.rates);
+
+    const suspendedDoc = {
+        _id: new mongodb.ObjectId(),
+        id: suspendedHouseId,
+        house_id: suspendedHouseId,
+        name: 'philologica.ai Printhouse (Suspended)',
+        tenant_id: suspendedTenantId,
+        printer_node_id: suspendedNodeId,
+        status: 'SUSPENDED',
+        active: false,
+        version: 1,
+        accepted_patch_checksum: 'sha256:susp_patch_1',
+        rates_checksum: computeRatesChecksum(suspendedRates),
+        published_revision_id: 'rev_susp_1',
+        rates: suspendedRates,
+        signatures: clone(testHouse.signatures),
+        production_lead_days: 7,
+        shipping_days: 3,
+        limits: clone(testHouse.limits),
+        shipping: clone(testHouse.shipping)
+    };
+    mockMongoHouses.push(suspendedDoc);
+
+    const legacyHouseId = 'ph_legacy_without_status';
+    const legacyDoc = {
+        _id: new mongodb.ObjectId(),
+        id: legacyHouseId,
+        house_id: legacyHouseId,
+        name: 'Legacy Print House Without Status',
+        tenant_id: 'tenant_legacy_1',
+        printer_node_id: 'node_legacy_1',
+        version: 1,
+        rates: clone(testHouse.rates),
+        signatures: clone(testHouse.signatures),
+        production_lead_days: 7,
+        shipping_days: 3,
+        limits: clone(testHouse.limits),
+        shipping: clone(testHouse.shipping)
+    };
+    mockMongoHouses.push(legacyDoc);
+
+    // Re-initialize repository instance from Mongo mock
+    const suspensionRepo = new Repository();
+    await suspensionRepo.init('mongodb://mock-cluster:27017/test_db');
+
+    assert('suspended house excluded from cotizable repository cache', suspensionRepo.find(suspendedHouseId) === null);
+    assert('legacy house without status included in cotizable repository cache', suspensionRepo.find(legacyHouseId) !== null);
+
+    // Verify Both Calculation Routes EXCLUDE suspended house before publication
+    const preOffersRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/offers',
+        payload: validPayload
+    });
+    const preOffers = JSON.parse(preOffersRes.payload).offers || [];
+    assert('marketplace offers route excludes suspended house', !preOffers.some(o => o.house_id === suspendedHouseId));
+
+    const preEstimatesRes = await app.inject({
+        method: 'POST',
+        url: '/api/estimates',
+        payload: validPayload
+    });
+    const preHouses = JSON.parse(preEstimatesRes.payload).print_houses || [];
+    assert('estimates route excludes suspended house', !preHouses.some(h => (h.id === suspendedHouseId || h.house_id === suspendedHouseId)));
+
+    // Test Publication on Suspended House
+    const updatedSuspendedRates = clone(testHouse.rates);
+    updatedSuspendedRates.paper_price_cover_by_kilo.mc = 99.0;
+    const newSuspendedRatesChecksum = computeRatesChecksum(updatedSuspendedRates);
+    const newSuspendedPatch = 'sha256:patch_susp_v2';
+
+    const publishSuspendedRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/revisions/publish',
+        headers: { 'X-BPE-Service-Token': 'test_secret_service_token_12345' },
+        payload: {
+            tenant_id: suspendedTenantId,
+            printer_node_id: suspendedNodeId,
+            bpe_printhouse_id: suspendedHouseId,
+            revision_id: 'rev_susp_2',
+            accepted_patch_checksum: newSuspendedPatch,
+            version: 2,
+            rates: updatedSuspendedRates
+        }
+    });
+
+    assert('publication on suspended house returns 200', publishSuspendedRes.statusCode === 200);
+    const pubSuspendedBody = JSON.parse(publishSuspendedRes.payload);
+    assert('publication on suspended house status is PUBLISHED', pubSuspendedBody.status === 'PUBLISHED');
+    assert('publication on suspended house readback is verified', pubSuspendedBody.readback?.verified === true);
+
+    // Verify MongoDB document state: rates updated, status STILL SUSPENDED
+    assert('MongoDB document rates updated', suspendedDoc.rates.paper_price_cover_by_kilo.mc === 99.0);
+    assert('MongoDB document status remains SUSPENDED', suspendedDoc.status === 'SUSPENDED');
+
+    // CRITICAL: Rates publication of suspended document MUST NOT introduce it into cotizable caches
+    const postOffersRes = await app.inject({
+        method: 'POST',
+        url: '/api/marketplace/offers',
+        payload: validPayload
+    });
+    const postOffers = JSON.parse(postOffersRes.payload).offers || [];
+    assert('marketplace offers route STILL excludes suspended house after publication', !postOffers.some(o => o.house_id === suspendedHouseId));
+
+    const postEstimatesRes = await app.inject({
+        method: 'POST',
+        url: '/api/estimates',
+        payload: validPayload
+    });
+    const postHouses = JSON.parse(postEstimatesRes.payload).print_houses || [];
+    assert('estimates route STILL excludes suspended house after publication', !postHouses.some(h => (h.id === suspendedHouseId || h.house_id === suspendedHouseId)));
+
     // Restore original MongoClient
     Object.defineProperty(mongodb, 'MongoClient', originalDescriptor);
     await app.close();

@@ -38,6 +38,27 @@ function slugify(str) {
 }
 
 /**
+ * Checks whether a raw house entry is explicitly suspended, deleted, or disabled.
+ * Legacy documents without status or active fields remain fully cotizable.
+ * @param {object} row
+ * @returns {boolean}
+ */
+function isExplicitlySuspendedOrDisabled(row) {
+    if (!row || typeof row !== 'object') return false;
+    const status = String(row.status || '').trim().toUpperCase();
+    if (status === 'SUSPENDED' || status === 'DELETED' || status === 'DISABLED') {
+        return true;
+    }
+    if (row.disabled === true || row.is_disabled === true || row.is_deleted === true) {
+        return true;
+    }
+    if (row.active === false) {
+        return true;
+    }
+    return false;
+}
+
+/**
  * Normalises a raw array of print house objects loaded from MongoDB.
  * @param {Array<object>} rows
  * @param {string[]} warnings  Mutable array — warnings are pushed here.
@@ -59,6 +80,13 @@ function normalizeList(rows, warnings = []) {
             row.slug ??
             slugify(row.name ?? row.print_house ?? 'unknown')
         );
+
+        const rawStatus = row.status ? String(row.status).trim().toUpperCase() : null;
+        if (isExplicitlySuspendedOrDisabled(row)) {
+            const reason = rawStatus ? `status: ${rawStatus}` : (row.active === false ? 'active: false' : 'disabled: true');
+            warnings.push(`Excluding non-cotizable printhouse ${id} (${reason})`);
+            continue;
+        }
 
         const name = String(
             row.name ??
@@ -127,6 +155,8 @@ function normalizeList(rows, warnings = []) {
             house_id: id,
             print_house: name,
             name,
+            status: rawStatus || 'ACTIVE',
+            active: true,
 
             signature,
             signatures,
@@ -175,15 +205,30 @@ class Repository {
 
     /**
      * Updates rates and metadata for a specific print house in this repository cache.
+     * If the print house is explicitly suspended, deleted, or disabled, it is evicted from cotizable cache.
      * @param {string} houseId
      * @param {object} rates
      * @param {object} [meta]
      * @returns {boolean}
      */
     updateHouseRates(houseId, rates, meta = {}) {
-        const house = this._cache.find(h => h.id === houseId || h.house_id === houseId);
-        if (!house) return false;
+        const houseIndex = this._cache.findIndex(h => h.id === houseId || h.house_id === houseId);
 
+        // Check if publication metadata or the house indicates suspension/deletion/disabling
+        const isSuspendedOrDisabled = isExplicitlySuspendedOrDisabled(meta) ||
+            (meta.status && ['SUSPENDED', 'DELETED', 'DISABLED'].includes(String(meta.status).trim().toUpperCase()));
+
+        if (isSuspendedOrDisabled) {
+            // Evict if present; never introduce a suspended printhouse into cotizable cache
+            if (houseIndex >= 0) {
+                this._cache.splice(houseIndex, 1);
+            }
+            return false;
+        }
+
+        if (houseIndex < 0) return false;
+
+        const house = this._cache[houseIndex];
         house.rates = rates;
         if (meta.accepted_patch_checksum) house.accepted_patch_checksum = meta.accepted_patch_checksum;
         if (meta.rates_checksum) house.rates_checksum = meta.rates_checksum;
@@ -191,6 +236,7 @@ class Repository {
         if (meta.version) house.version = meta.version;
         if (meta.printer_node_id) house.printer_node_id = meta.printer_node_id;
         if (meta.tenant_id) house.tenant_id = meta.tenant_id;
+        if (meta.status) house.status = meta.status;
         house.updated_at = new Date();
         return true;
     }
@@ -335,5 +381,7 @@ class Repository {
         return { valid, issues, count: this._cache.length };
     }
 }
+
+Repository.isExplicitlySuspendedOrDisabled = isExplicitlySuspendedOrDisabled;
 
 module.exports = Repository;
