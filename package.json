@@ -6,7 +6,7 @@
     "private": true,
     "scripts": {
         "start": "node server.js",
-        "test": "node tests/run-tests.js && node tests/test-licenses.js"
+        "test": "node tests/run-tests.js && node tests/test-licenses.js && node tests/test-bpe-publication-and-marketplace.js"
     },
     "dependencies": {
         "@fastify/cors": "^11.2.0",

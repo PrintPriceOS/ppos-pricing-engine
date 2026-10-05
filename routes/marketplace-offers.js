@@ -1,13 +1,14 @@
 /**
  * PrintPrice OS — Pricing Engine
  *
- * Marketplace Offers Route.
+ * Marketplace Offers Route & Rate Publication Ingestion.
  */
 
 'use strict';
 
 const { Repository, EstimatesService } = require('../index');
 const { mapEstimateToMarketplaceOffers } = require('../src/MarketplaceOfferMapper');
+const { computeRatesChecksum } = require('../src/RatesChecksum');
 
 function mapMarketplacePayloadToBpe(body) {
     const raw = body.specs || body || {};
@@ -47,7 +48,7 @@ function mapMarketplacePayloadToBpe(body) {
     else if (raw.colorMode !== undefined) mapped.interior_print = raw.colorMode;
     else if (raw.printMode !== undefined) mapped.interior_print = raw.printMode;
 
-    // rest of specs:
+    // Direct physical attributes:
     const directFields = [
         'cover_pages', 'orientation', 'cover_print', 
         'paper_type_interior', 'paper_weight_interior', 
@@ -74,11 +75,14 @@ function mapMarketplacePayloadToBpe(body) {
     if (raw.customHeight !== undefined) mapped.custom_height = raw.customHeight;
     if (raw.uvVarnish !== undefined) mapped.uv_varnish = raw.uvVarnish;
 
-    // Check custom size dimensions aliases if set
-    if (raw.width_mm !== undefined) mapped.custom_width = raw.width_mm;
-    if (raw.height_mm !== undefined) mapped.custom_height = raw.height_mm;
-    if (raw.width !== undefined) mapped.custom_width = raw.width;
-    if (raw.height !== undefined) mapped.custom_height = raw.height;
+    // Custom dimensions: preserve book_width_mm / book_height_mm and aliases
+    if (raw.book_width_mm !== undefined) mapped.custom_width = raw.book_width_mm;
+    else if (raw.width_mm !== undefined) mapped.custom_width = raw.width_mm;
+    else if (raw.width !== undefined) mapped.custom_width = raw.width;
+
+    if (raw.book_height_mm !== undefined) mapped.custom_height = raw.book_height_mm;
+    else if (raw.height_mm !== undefined) mapped.custom_height = raw.height_mm;
+    else if (raw.height !== undefined) mapped.custom_height = raw.height;
 
     return mapped;
 }
@@ -101,9 +105,6 @@ async function marketplaceOffersRoutes(fastify, options) {
      * Generates Marketplace-compatible offers from BPE calculations.
      */
     fastify.post('/marketplace/offers', async (request, reply) => {
-        // Forensic logs: Log incoming raw body (do not log auth / headers / secrets)
-        console.log('[BPE_MARKETPLACE_OFFERS_INCOMING]', JSON.stringify(request.body, null, 2));
-
         const context = {
             source: request.body.source,
             source_ref: request.body.source_ref,
@@ -128,109 +129,19 @@ async function marketplaceOffersRoutes(fastify, options) {
         }, '[BPE][MARKETPLACE-OFFERS][REQUEST]');
 
         const normalizedPayload = mapMarketplacePayloadToBpe(request.body);
-        console.log('[BPE_MARKETPLACE_OFFERS_NORMALIZED]', JSON.stringify(normalizedPayload, null, 2));
-
-        let estimateResult;
-        let isFallback = false;
 
         try {
-            // Call original estimate service with mapped body
-            estimateResult = service.estimate(normalizedPayload);
+            // Call pricing calculation service with mapped body
+            const estimateResult = service.estimate(normalizedPayload);
 
             if (!estimateResult.print_houses || estimateResult.print_houses.length === 0) {
-                isFallback = true;
+                return reply.status(422).send({
+                    ok: false,
+                    error: 'NO_MATCHING_PRINTHOUSES',
+                    details: 'No print houses available or matching the requested specifications'
+                });
             }
-        } catch (err) {
-            fastify.log.warn({ error: err.message }, '[BPE][MARKETPLACE-OFFERS] Calculation failed, falling back to static offers');
-            isFallback = true;
-        }
 
-        if (isFallback) {
-            const offers = [
-                {
-                    printer_id: "adv-2025",
-                    printer_name: "Adv 2025",
-                    suggested_price: 2607.2429,
-                    production_cost: 1825.07,
-                    total_price: 2607.2429,
-                    total_cost: 1825.07,
-                    currency: context.currency || "EUR",
-                    production_lead_days: 7,
-                    shipping_days: 2,
-                    estimated_delivery_time: "9 days",
-                    source: "BPE_STATIC_FALLBACK",
-                    warning: "BPE_STATIC_PRICING_DETECTED",
-                    breakdown: []
-                },
-                {
-                    printer_id: "dar-2025",
-                    printer_name: "Dar 2025",
-                    suggested_price: 2718.3000,
-                    production_cost: 1902.81,
-                    total_price: 2718.3000,
-                    total_cost: 1902.81,
-                    currency: context.currency || "EUR",
-                    production_lead_days: 7,
-                    shipping_days: 2,
-                    estimated_delivery_time: "9 days",
-                    source: "BPE_STATIC_FALLBACK",
-                    warning: "BPE_STATIC_PRICING_DETECTED",
-                    breakdown: []
-                },
-                {
-                    printer_id: "poz-2025",
-                    printer_name: "Poz 2025",
-                    suggested_price: 2752.1571,
-                    production_cost: 1926.51,
-                    total_price: 2752.1571,
-                    total_cost: 1926.51,
-                    currency: context.currency || "EUR",
-                    production_lead_days: 7,
-                    shipping_days: 2,
-                    estimated_delivery_time: "9 days",
-                    source: "BPE_STATIC_FALLBACK",
-                    warning: "BPE_STATIC_PRICING_DETECTED",
-                    breakdown: []
-                }
-            ];
-
-            const fallbackResult = {
-                ok: true,
-                engine: "v3.0-fallback",
-                source: "BPE_STATIC_FALLBACK",
-                warning: "BPE_STATIC_PRICING_DETECTED",
-                source_ref: context.source_ref || null,
-                tenant_id: context.tenant_id || "default",
-                trace_id: context.trace_id || null,
-                order_id: context.order_id || null,
-                job_id: context.job_id || null,
-                quote_id: context.quote_id || null,
-                currency: context.currency || "EUR",
-                params: request.body,
-                selected_offer: offers[0],
-                offers: offers,
-                count: offers.length,
-                warnings: ["BPE_STATIC_PRICING_DETECTED"],
-                errors: {}
-            };
-
-            console.log('[BPE_MARKETPLACE_OFFERS_RESULT_SUMMARY]', {
-                offersCount: fallbackResult.offers.length,
-                prices: fallbackResult.offers.map(o => ({
-                    printer_id: o.printer_id,
-                    printer_name: o.printer_name,
-                    suggested_price: o.suggested_price,
-                    production_cost: o.production_cost,
-                    total_price: o.total_price,
-                    total_cost: o.total_cost,
-                    source: o.source
-                }))
-            });
-
-            return fallbackResult;
-        }
-
-        try {
             fastify.log.info({
                 trace_id: context.trace_id,
                 count: estimateResult.count,
@@ -245,20 +156,6 @@ async function marketplaceOffersRoutes(fastify, options) {
                 count: mappedResult.count,
                 has_selected: !!mappedResult.selected_offer
             }, '[BPE][MARKETPLACE-OFFERS][MAPPED]');
-
-            // Forensic logs: Log result summary (do not log secrets)
-            console.log('[BPE_MARKETPLACE_OFFERS_RESULT_SUMMARY]', {
-                offersCount: mappedResult.offers.length,
-                prices: mappedResult.offers.map(o => ({
-                    printer_id: o.printer_id,
-                    printer_name: o.printer_name,
-                    suggested_price: o.suggested_price,
-                    production_cost: o.production_cost,
-                    total_price: o.total_price,
-                    total_cost: o.total_cost,
-                    source: o.source
-                }))
-            });
 
             return mappedResult;
 
@@ -282,9 +179,11 @@ async function marketplaceOffersRoutes(fastify, options) {
 
     /**
      * POST /api/marketplace/revisions/publish
-     * Receives accepted pricing revision from Control Plane, updates MongoDB, and refreshes in-memory rates.
+     * Receives accepted pricing revision from Control Plane, validates mappings,
+     * updates MongoDB with readback verification, and refreshes all active Repository caches.
      */
     fastify.post('/marketplace/revisions/publish', async (request, reply) => {
+        // 1. Strict Authentication
         const configuredToken = (process.env.PPOS_BPE_SERVICE_TOKEN || '').trim();
         if (!configuredToken) {
             return reply.status(503).send({
@@ -312,6 +211,7 @@ async function marketplaceOffersRoutes(fastify, options) {
             });
         }
 
+        // 2. Validate payload fields
         const body = request.body || {};
         const {
             tenant_id,
@@ -323,11 +223,21 @@ async function marketplaceOffersRoutes(fastify, options) {
             rates
         } = body;
 
-        if (!bpe_printhouse_id || !accepted_patch_checksum || !rates) {
+        if (!tenant_id || !printer_node_id || !bpe_printhouse_id || !revision_id || !accepted_patch_checksum || !rates) {
             return reply.status(400).send({
                 ok: false,
                 error: 'MISSING_REQUIRED_FIELDS',
-                details: 'bpe_printhouse_id, accepted_patch_checksum, and rates are required'
+                details: 'tenant_id, printer_node_id, bpe_printhouse_id, revision_id, accepted_patch_checksum, and rates are required'
+            });
+        }
+
+        // 3. Compute canonical rates checksum to verify and distinguish from patch checksum
+        const calculatedRatesChecksum = computeRatesChecksum(rates);
+        if (!calculatedRatesChecksum) {
+            return reply.status(400).send({
+                ok: false,
+                error: 'INVALID_RATES_PAYLOAD',
+                details: 'Rates payload could not be parsed or serialized'
             });
         }
 
@@ -336,54 +246,224 @@ async function marketplaceOffersRoutes(fastify, options) {
             printer_node_id,
             bpe_printhouse_id,
             revision_id,
-            checksum: accepted_patch_checksum
-        }, '[BPE][REVISION-PUBLISH] Ingesting rate publication from Control Plane');
+            patch_checksum: accepted_patch_checksum,
+            rates_checksum: calculatedRatesChecksum
+        }, '[BPE][REVISION-PUBLISH] Validating rate publication from Control Plane');
 
-        // 1. Update in MongoDB if configured
-        if (process.env.MONGODB_URI) {
-            try {
-                const { MongoClient } = require('mongodb');
-                const client = new MongoClient(process.env.MONGODB_URI);
-                await client.connect();
-                const db = client.db();
-                await db.collection('printhouses').updateOne(
-                    { $or: [{ id: bpe_printhouse_id }, { house_id: bpe_printhouse_id }, { slug: bpe_printhouse_id }] },
-                    {
-                        $set: {
-                            rates,
-                            accepted_patch_checksum,
-                            published_revision_id: revision_id,
-                            version: version || 1,
-                            updated_at: new Date()
-                        }
+        // 4. Persistence to MongoDB with explicit verification
+        const mongoUri = process.env.MONGODB_URI;
+        if (!mongoUri) {
+            return reply.status(500).send({
+                ok: false,
+                error: 'MONGODB_NOT_CONFIGURED',
+                details: 'MongoDB connection URI is not configured on this server'
+            });
+        }
+
+        const { MongoClient } = require('mongodb');
+        let client;
+
+        try {
+            client = new MongoClient(mongoUri);
+            await client.connect();
+            const db = client.db();
+            const printhousesColl = db.collection('printhouses');
+
+            // Find printhouse strictly by canonical identifiers (no loose slug collision)
+            const house = await printhousesColl.findOne({
+                $or: [
+                    { id: bpe_printhouse_id },
+                    { house_id: bpe_printhouse_id }
+                ]
+            });
+
+            if (!house) {
+                return reply.status(404).send({
+                    ok: false,
+                    error: 'PRINTHOUSE_NOT_FOUND',
+                    details: `No printhouse found matching bpe_printhouse_id "${bpe_printhouse_id}"`
+                });
+            }
+
+            // Tenant isolation check
+            if (house.tenant_id && String(house.tenant_id) !== String(tenant_id)) {
+                return reply.status(403).send({
+                    ok: false,
+                    error: 'TENANT_MISMATCH',
+                    details: `Printhouse ${bpe_printhouse_id} belongs to tenant ${house.tenant_id}, publication attempted by ${tenant_id}`
+                });
+            }
+
+            // Printer node mapping check
+            const mappedNodeId = house.printer_node_id || house.control_plane_node_id || house.node_id;
+            if (mappedNodeId && String(mappedNodeId) !== String(printer_node_id)) {
+                return reply.status(400).send({
+                    ok: false,
+                    error: 'PRINTER_NODE_MISMATCH',
+                    details: `Printhouse ${bpe_printhouse_id} is mapped to node ${mappedNodeId}, publication specified ${printer_node_id}`
+                });
+            }
+
+            // Idempotency: exact same revision and patch checksum already published
+            if (house.accepted_patch_checksum === accepted_patch_checksum && String(house.published_revision_id) === String(revision_id)) {
+                fastify.log.info({ bpe_printhouse_id, revision_id, checksum: accepted_patch_checksum }, '[BPE][REVISION-PUBLISH] Idempotent publication replay detected');
+                const storedRatesChecksum = house.rates_checksum || computeRatesChecksum(house.rates);
+
+                // Broadcast to ensure all active in-memory repositories have latest state
+                Repository.broadcastRatesUpdate(bpe_printhouse_id, house.rates, {
+                    accepted_patch_checksum,
+                    rates_checksum: storedRatesChecksum,
+                    revision_id,
+                    version: house.version,
+                    printer_node_id,
+                    tenant_id
+                });
+
+                return reply.send({
+                    ok: true,
+                    already_published: true,
+                    status: 'PUBLISHED',
+                    checksum: accepted_patch_checksum,
+                    accepted_patch_checksum,
+                    rates_checksum: storedRatesChecksum,
+                    readback: {
+                        verified: true,
+                        accepted_patch_checksum: house.accepted_patch_checksum,
+                        rates_checksum: storedRatesChecksum
                     },
-                    { upsert: false }
-                );
-                await client.close();
-            } catch (mongoErr) {
-                fastify.log.warn({ error: mongoErr.message }, '[BPE][REVISION-PUBLISH] MongoDB persistence warning');
+                    bpe_printhouse_id,
+                    revision_id,
+                    version: house.version,
+                    published_at: house.updated_at ? (typeof house.updated_at.toISOString === 'function' ? house.updated_at.toISOString() : String(house.updated_at)) : new Date().toISOString()
+                });
+            }
+
+            // Version check: prevent older revision from overwriting newer publication
+            const currentVersion = Number(house.version) || 0;
+            const incomingVersion = Number(version) || 1;
+
+            if (incomingVersion < currentVersion) {
+                return reply.status(409).send({
+                    ok: false,
+                    error: 'OUTDATED_REVISION',
+                    details: `Cannot publish revision version ${incomingVersion}; printhouse is already at version ${currentVersion}`
+                });
+            }
+
+            if (incomingVersion === currentVersion && house.accepted_patch_checksum && house.accepted_patch_checksum !== accepted_patch_checksum) {
+                return reply.status(409).send({
+                    ok: false,
+                    error: 'VERSION_CONFLICT',
+                    details: `Version ${incomingVersion} has already been published with a different patch checksum`
+                });
+            }
+
+            // Update in MongoDB with atomic version guard
+            const updateResult = await printhousesColl.updateOne(
+                {
+                    _id: house._id,
+                    $or: [
+                        { version: { $lt: incomingVersion } },
+                        { version: incomingVersion, accepted_patch_checksum: accepted_patch_checksum },
+                        { version: { $exists: false } }
+                    ]
+                },
+                {
+                    $set: {
+                        rates,
+                        accepted_patch_checksum,
+                        rates_checksum: calculatedRatesChecksum,
+                        published_revision_id: revision_id,
+                        printer_node_id,
+                        tenant_id,
+                        version: incomingVersion,
+                        updated_at: new Date()
+                    }
+                },
+                { upsert: false }
+            );
+
+            if (updateResult.matchedCount === 0) {
+                return reply.status(409).send({
+                    ok: false,
+                    error: 'CONCURRENT_MODIFICATION',
+                    details: 'Failed to update printhouse due to version conflict or concurrent modification'
+                });
+            }
+
+            // Real readback from MongoDB to confirm persistence
+            const readbackDoc = await printhousesColl.findOne({ _id: house._id });
+            if (!readbackDoc) {
+                return reply.status(500).send({
+                    ok: false,
+                    error: 'READBACK_FAILED',
+                    details: 'Failed to read back printhouse document from MongoDB after update'
+                });
+            }
+
+            if (readbackDoc.accepted_patch_checksum !== accepted_patch_checksum) {
+                return reply.status(500).send({
+                    ok: false,
+                    error: 'READBACK_CHECKSUM_MISMATCH',
+                    details: `Readback patch checksum mismatch. Expected: ${accepted_patch_checksum}, Stored: ${readbackDoc.accepted_patch_checksum}`
+                });
+            }
+
+            const readbackRatesChecksum = computeRatesChecksum(readbackDoc.rates);
+            if (readbackRatesChecksum !== calculatedRatesChecksum) {
+                return reply.status(500).send({
+                    ok: false,
+                    error: 'READBACK_RATES_CHECKSUM_MISMATCH',
+                    details: `Readback rates checksum mismatch. Expected: ${calculatedRatesChecksum}, Stored: ${readbackRatesChecksum}`
+                });
+            }
+
+            // Synchronize in-memory cache across ALL active Repository instances (estimates & marketplace)
+            const updatedCount = Repository.broadcastRatesUpdate(bpe_printhouse_id, rates, {
+                accepted_patch_checksum,
+                rates_checksum: calculatedRatesChecksum,
+                revision_id,
+                version: incomingVersion,
+                printer_node_id,
+                tenant_id
+            });
+
+            fastify.log.info({
+                bpe_printhouse_id,
+                revision_id,
+                incomingVersion,
+                updatedCount
+            }, '[BPE][REVISION-PUBLISH] Rates updated in MongoDB, verified via readback, and propagated to active repositories');
+
+            return reply.send({
+                ok: true,
+                status: 'PUBLISHED',
+                checksum: accepted_patch_checksum,
+                accepted_patch_checksum,
+                rates_checksum: calculatedRatesChecksum,
+                readback: {
+                    verified: true,
+                    accepted_patch_checksum: readbackDoc.accepted_patch_checksum,
+                    rates_checksum: readbackRatesChecksum
+                },
+                bpe_printhouse_id,
+                revision_id,
+                version: incomingVersion,
+                published_at: new Date().toISOString()
+            });
+
+        } catch (mongoErr) {
+            fastify.log.error({ error: mongoErr.message }, '[BPE][REVISION-PUBLISH] MongoDB error');
+            return reply.status(500).send({
+                ok: false,
+                error: 'MONGODB_PERSISTENCE_FAILED',
+                details: mongoErr.message
+            });
+        } finally {
+            if (client) {
+                await client.close().catch(() => {});
             }
         }
-
-        // 2. Refresh in-memory cache in repository so subsequent calculations immediately use updated rates
-        const cached = repository._cache.find(h => h.id === bpe_printhouse_id || h.house_id === bpe_printhouse_id);
-        if (cached) {
-            cached.rates = rates;
-            cached.accepted_patch_checksum = accepted_patch_checksum;
-            cached.published_revision_id = revision_id;
-            cached.version = version || 1;
-        }
-
-        return {
-            ok: true,
-            status: 'PUBLISHED',
-            checksum: accepted_patch_checksum,
-            accepted_patch_checksum,
-            bpe_printhouse_id,
-            revision_id,
-            version: version || 1,
-            published_at: new Date().toISOString()
-        };
     });
 }
 

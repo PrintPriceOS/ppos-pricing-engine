@@ -13,7 +13,7 @@
 
 'use strict';
 
-const { MongoClient } = require('mongodb');
+const mongodb = require('mongodb');
 
 const DEFAULTS = {
     signature: 16,
@@ -154,12 +154,62 @@ function normalizeList(rows, warnings = []) {
 }
 
 class Repository {
+    static _instances = new Set();
+
     constructor() {
         /** @type {Array<object>} */
         this._cache = [];
 
         /** @type {object|null} */
         this._meta = null;
+
+        Repository._instances.add(this);
+    }
+
+    /**
+     * Unregisters this repository instance.
+     */
+    destroy() {
+        Repository._instances.delete(this);
+    }
+
+    /**
+     * Updates rates and metadata for a specific print house in this repository cache.
+     * @param {string} houseId
+     * @param {object} rates
+     * @param {object} [meta]
+     * @returns {boolean}
+     */
+    updateHouseRates(houseId, rates, meta = {}) {
+        const house = this._cache.find(h => h.id === houseId || h.house_id === houseId);
+        if (!house) return false;
+
+        house.rates = rates;
+        if (meta.accepted_patch_checksum) house.accepted_patch_checksum = meta.accepted_patch_checksum;
+        if (meta.rates_checksum) house.rates_checksum = meta.rates_checksum;
+        if (meta.revision_id) house.published_revision_id = meta.revision_id;
+        if (meta.version) house.version = meta.version;
+        if (meta.printer_node_id) house.printer_node_id = meta.printer_node_id;
+        if (meta.tenant_id) house.tenant_id = meta.tenant_id;
+        house.updated_at = new Date();
+        return true;
+    }
+
+    /**
+     * Propagates rates update across all active Repository instances.
+     * @param {string} houseId
+     * @param {object} rates
+     * @param {object} [meta]
+     * @returns {number} Count of repository instances updated
+     */
+    static broadcastRatesUpdate(houseId, rates, meta = {}) {
+        let count = 0;
+        for (const instance of Repository._instances) {
+            if (instance.updateHouseRates(houseId, rates, meta)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -184,7 +234,7 @@ class Repository {
             return;
         }
 
-        const client = new MongoClient(uri);
+        const client = new mongodb.MongoClient(uri);
 
         try {
             await client.connect();
