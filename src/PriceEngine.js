@@ -235,8 +235,12 @@ function normalizeParams(p) {
         p.block_binding_method = 'wire-o';
     } else if (/spiral|flexibound|espiral/.test(rawBinding) || /spiral/.test(rawBlock)) {
         p.block_binding_method = 'spiral';
-    } else {
+    } else if (/perfect|pur|fresad|adhesive|klebe/.test(rawBinding) || /perfect|pur|fresad|adhesive|klebe/.test(rawBlock)) {
         p.block_binding_method = 'perfect bound';
+    } else if (rawBlock) {
+        p.block_binding_method = 'perfect bound';
+    } else {
+        p.block_binding_method = isHardcover ? null : 'perfect bound';
     }
 
     // Effective binding_method for rate lookup (binding_hc, binding_ts, binding_pb, etc.)
@@ -397,9 +401,9 @@ function sectionsArray(pages, signature) {
  * ---------------------------------------------------------------------- */
 
 function bindingCost(rates, p, copies, signature, sectArr) {
+    const isHardcover = p.construction === 'hardcover' || p.binding_method === 'hardcover';
     const bindingMethodInt = getBindingCode(String(p.binding_method), 'alternative');
     const sectionsBinding = getSectionsBindings(bindingMethodInt, signature, sectArr);
-    let total = 0.0;
 
     function calcCost(fixedKey, varKey) {
         const fixed = Number(arrGet(rates[fixedKey] ?? {}, sectionsBinding, 0));
@@ -419,30 +423,37 @@ function bindingCost(rates, p, copies, signature, sectArr) {
         }
     }
 
-    switch (bindingMethodInt) {
-        case 1:
-            total += calcCostCapped('binding_pb_fixed_by_sections', 'binding_pb_var_per_1000_by_sections');
-            return total;
-        case 2:
-            if (sectionsBinding < 13) {
-                total += calcCost('binding_ss_fixed_by_sections', 'binding_ss_var_per_1000_by_sections');
-            }
-            return total;
-        case 3:
-            total += calcCostCapped('binding_ts_fixed_by_sections', 'binding_ts_var_per_1000_by_sections');
-            return total;
-        case 4:
-            total += calcCostCapped('binding_hc_fixed_by_sections', 'binding_hc_var_per_1000_by_sections');
-            return total;
-        case 5:
-            total += calcCostCapped('binding_wo_fixed_by_sections', 'binding_wo_var_per_1000_by_sections');
-            return total;
-        case 6:
-            total += calcCostCapped('binding_sp_fixed_by_sections', 'binding_sp_var_per_1000_by_sections');
-            return total;
-        default:
-            return 0.0;
+    let costBlockBinding = 0.0;
+    let costCasing = 0.0;
+
+    // 1. Hardcover casing assembly
+    if (isHardcover) {
+        costCasing = calcCostCapped('binding_hc_fixed_by_sections', 'binding_hc_var_per_1000_by_sections');
     }
+
+    // 2. Block binding operation
+    const blockMethod = p.block_binding_method;
+    if (blockMethod === 'thread sewn') {
+        costBlockBinding = calcCostCapped('binding_ts_fixed_by_sections', 'binding_ts_var_per_1000_by_sections');
+    } else if (blockMethod === 'saddle stitch') {
+        if (sectionsBinding < 13) {
+            costBlockBinding = calcCost('binding_ss_fixed_by_sections', 'binding_ss_var_per_1000_by_sections');
+        }
+    } else if (blockMethod === 'wire-o') {
+        costBlockBinding = calcCostCapped('binding_wo_fixed_by_sections', 'binding_wo_var_per_1000_by_sections');
+    } else if (blockMethod === 'spiral') {
+        costBlockBinding = calcCostCapped('binding_sp_fixed_by_sections', 'binding_sp_var_per_1000_by_sections');
+    } else if (blockMethod === 'perfect bound' || (!isHardcover && !blockMethod)) {
+        costBlockBinding = calcCostCapped('binding_pb_fixed_by_sections', 'binding_pb_var_per_1000_by_sections');
+    }
+
+    const total = costBlockBinding + costCasing;
+    return {
+        total,
+        costBlockBinding,
+        costCasing,
+        costSewing: blockMethod === 'thread sewn' ? costBlockBinding : 0.0
+    };
 }
 
 /* -------------------------------------------------------------------------
@@ -818,7 +829,11 @@ function buildPrice(params, house) {
     const costPrintInt = interiorPrintCost(rates, p, sectArr, copies, sig);
     const costPrintCov = coverPrintCost(rates, p, copies);
     const endpaper = endpapersCost(rates, p, copies);
-    const costBinding = bindingCost(rates, p, copies, sig, sectArr);
+    const bindingResult = bindingCost(rates, p, copies, sig, sectArr);
+    const costBinding = bindingResult.total;
+    const costBlockBinding = bindingResult.costBlockBinding;
+    const costCasing = bindingResult.costCasing;
+    const costSewing = bindingResult.costSewing;
     const extraCost = extraCosts(p, copies, sig, sectArr);
 
     const sheetsInt = sheetsInterior(rates, p, copies, sig, sectArr);
@@ -847,14 +862,23 @@ function buildPrice(params, house) {
         { item: `Cover print (${p.cover_print})`, line_total: round2(costPrintCov) },
         { item: `Endpapers paper (${p.paper_weight_endpapers}gsm)`, line_total: round2(costPaperEnd) },
         { item: 'Endpapers print', line_total: round2(endpaper) },
-        { item: `Binding (${p.binding_method})`, line_total: round2(costBinding) },
+    ];
+
+    if (p.construction === 'hardcover' && costBlockBinding > 0) {
+        lines.push({ item: `Block binding (${p.block_binding_method})`, line_total: round2(costBlockBinding) });
+        lines.push({ item: 'Hardcover casing', line_total: round2(costCasing) });
+    } else {
+        lines.push({ item: `Binding (${p.binding_method})`, line_total: round2(costBinding) });
+    }
+
+    lines.push(
         { item: 'Extra costs', line_total: round2(extraCost) },
         { item: 'Shipping', line_total: round2(costShip) },
         // Informative
         { item: 'Sections', value: sects },
         { item: 'Signature', value: sig },
         { item: 'Book size', value: `${p.book_size_code} (${p.book_width_mm}×${p.book_height_mm} mm)` },
-    ];
+    );
 
     // Subtotal
     let subtotal = 0.0;
@@ -898,6 +922,9 @@ function buildPrice(params, house) {
                 cost_paper_cov: round2(costPaperCov),
                 cost_print_cov: round2(costPrintCov),
                 cost_binding: round2(costBinding),
+                cost_block_binding: round2(costBlockBinding),
+                cost_casing: round2(costCasing),
+                cost_sewing: round2(costSewing),
                 cost_ship: round2(costShip),
                 subtotal: round2(subtotal),
             },

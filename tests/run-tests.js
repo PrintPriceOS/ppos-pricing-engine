@@ -397,9 +397,109 @@ function assert(label, condition, detail = '') {
     assert('Hardcover construction is preserved', estHardcoverThreadSewn.debug.params.construction === 'hardcover');
     assert('Block binding method thread sewn is preserved', estHardcoverThreadSewn.debug.params.block_binding_method === 'thread sewn');
     assert('Hardcover binding method for rates is hardcover', estHardcoverThreadSewn.debug.params.binding_method === 'hardcover');
-    assert('Hardcover binding cost is evaluated via binding_hc (not binding_ts)', estHardcoverThreadSewn.debug.components.cost_binding > 0);
+    assert('Hardcover binding cost includes both casing and thread sewing', estHardcoverThreadSewn.debug.components.cost_binding > 0);
     assert('Unprinted 0/0 endpapers evaluate print cost to exactly 0.0 €', estHardcoverThreadSewn.lines.find(l => l.item === 'Endpapers print').line_total === 0);
     assert('Unprinted 0/0 endpapers retain paper cost > 0 €', estHardcoverThreadSewn.lines.find(l => l.item.startsWith('Endpapers paper')).line_total > 0);
+
+    // ---------------------------------------------------------------------------
+
+    console.log('\n[10] PriceEngine — Hardcover Casing and Thread Sewing Separation');
+
+    // Controlled synthetic rates
+    const controlledSyntheticRates = {
+        paper_price_interior_by_kilo: { offset: 2.0 },
+        paper_price_cover_by_kilo: { mc: 3.0 },
+        interior_full_colour_fixed: { '16p': 100.0 },
+        interior_full_colour_var: { '16p': 10.0 },
+        cover_fixed_by_colours: { '4': 50.0 },
+        cover_var_per_1000_by_colours: { '4': 15.0 },
+        // Hardcover casing rates for 13 sections: fixed 100 €, var 40 €/1000
+        binding_hc_fixed_by_sections: { '13': 100.0 },
+        binding_hc_var_per_1000_by_sections: { '13': 40.0 },
+        // Thread sewing rates for 13 sections: fixed 60 €, var 20 €/1000
+        binding_ts_fixed_by_sections: { '13': 60.0 },
+        binding_ts_var_per_1000_by_sections: { '13': 20.0 }
+    };
+
+    const controlledHouse = {
+        id: 'controlled-test-house',
+        name: 'Controlled Test House',
+        signatures: [16],
+        rates: controlledSyntheticRates
+    };
+
+    // 10.1: Hardcover + thread sewn includes each required operation exactly once
+    // For 1000 copies, 200 pages (13 sections):
+    // Expected Casing: 100.0 + 1 * 40.0 = 140.0 €
+    // Expected Sewing: 60.0 + 1 * 20.0 = 80.0 €
+    // Expected Total Binding: 140.0 + 80.0 = 220.0 €
+    const hcSewnEst = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        product_family: 'HARDCOVER',
+        construction: 'hardcover',
+        binding_method: 'hardcover',
+        block_binding_method: 'thread sewn',
+        paper_type_interior: 'offset',
+        paper_type_cover: 'mc',
+        endpapers: 'none'
+    }, controlledHouse);
+
+    assert('Hardcover casing evaluated independently (140.0 €)', hcSewnEst.debug.components.cost_casing === 140.0);
+    assert('Thread sewing evaluated independently (80.0 €)', hcSewnEst.debug.components.cost_sewing === 80.0);
+    assert('Hardcover total binding is sum of casing and sewing (220.0 €)', hcSewnEst.debug.components.cost_binding === 220.0);
+    assert('Exposes Block binding line item', hcSewnEst.lines.some(l => l.item === 'Block binding (thread sewn)' && l.line_total === 80.0));
+    assert('Exposes Hardcover casing line item', hcSewnEst.lines.some(l => l.item === 'Hardcover casing' && l.line_total === 140.0));
+
+    // 10.2: Changing sewing rates changes the total when sewing is separately priced
+    // Increase sewing var from 20 € to 50 € (+30 €):
+    // Expected Sewing: 60.0 + 1 * 50.0 = 110.0 €
+    // Expected Casing remains: 140.0 €
+    // Expected Total Binding: 140.0 + 110.0 = 250.0 € (diff = +30.0 €)
+    const modifiedHouse = {
+        ...controlledHouse,
+        rates: {
+            ...controlledSyntheticRates,
+            binding_ts_var_per_1000_by_sections: { '13': 50.0 }
+        }
+    };
+    const hcSewnModifiedEst = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        product_family: 'HARDCOVER',
+        construction: 'hardcover',
+        binding_method: 'hardcover',
+        block_binding_method: 'thread sewn',
+        paper_type_interior: 'offset',
+        paper_type_cover: 'mc',
+        endpapers: 'none'
+    }, modifiedHouse);
+
+    assert('Modified sewing cost is 110.0 €', hcSewnModifiedEst.debug.components.cost_sewing === 110.0);
+    assert('Casing cost unchanged at 140.0 €', hcSewnModifiedEst.debug.components.cost_casing === 140.0);
+    assert('Total binding changes by exactly 30.0 € (250.0 €)', hcSewnModifiedEst.debug.components.cost_binding === 250.0);
+    assert('Total cost reflects exact sewing increase', Math.round((hcSewnModifiedEst.total_cost - hcSewnEst.total_cost) * 100) / 100 === 30.0);
+
+    // 10.3: Softcover thread sewn does NOT acquire hardcover assembly costs
+    // Expected Casing: 0.0 €
+    // Expected Sewing: 80.0 €
+    // Expected Total Binding: 80.0 €
+    const scSewnEst = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        product_family: 'SOFTCOVER',
+        construction: 'softcover',
+        binding_method: 'thread sewn',
+        block_binding_method: 'thread sewn',
+        paper_type_interior: 'offset',
+        paper_type_cover: 'mc',
+        endpapers: 'none'
+    }, controlledHouse);
+
+    assert('Softcover thread sewn casing cost is 0.0 €', scSewnEst.debug.components.cost_casing === 0.0);
+    assert('Softcover thread sewn sewing cost is 80.0 €', scSewnEst.debug.components.cost_sewing === 80.0);
+    assert('Softcover total binding is solely sewing cost (80.0 €)', scSewnEst.debug.components.cost_binding === 80.0);
+    assert('Softcover does not have Hardcover casing line item', !scSewnEst.lines.some(l => l.item === 'Hardcover casing'));
 
     // ---------------------------------------------------------------------------
 
