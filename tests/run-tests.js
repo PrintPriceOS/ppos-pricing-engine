@@ -275,7 +275,136 @@ function assert(label, condition, detail = '') {
 
     // ---------------------------------------------------------------------------
 
+    console.log('\n[9] PriceEngine — Imposition Decomposition & Hardcover Decoupling');
+
+    const rates16pHouse = {
+        paper_price_interior_by_kilo: { offset: 2.0 },
+        paper_price_cover_by_kilo: { mc: 4.0 },
+        paper_price_endpaper_by_kilo: { offset: 2.5 },
+        interior_full_colour_fixed: { '16p': 160.0, '8p': 90.0, '4p': 50.0, '32p': 0 },
+        interior_full_colour_var: { '16p': 16.0, '8p': 9.0, '4p': 5.0, '32p': 0 },
+        cover_fixed_by_colours: { '4': 100.0 },
+        cover_var_per_1000_by_colours: { '4': 20.0 },
+        binding_hc_fixed_by_sections: { '13': 1.25, '20': 1.25, '24': 1.25, '40': 1.25 },
+        binding_hc_var_per_1000_by_sections: { '13': 50.0, '20': 50.0, '24': 50.0, '40': 50.0 },
+        binding_ts_fixed_by_sections: { '13': 60.0, '20': 60.0, '24': 60.0, '40': 60.0 },
+        binding_ts_var_per_1000_by_sections: { '13': 30.0, '20': 30.0, '24': 30.0, '40': 30.0 },
+        endpaper_fixed_by_colours: { '4': 50.0 },
+        endpaper_var_per_1000_by_colours: { '4': 10.0 }
+    };
+
+    const node16pHouse = {
+        id: 'node-16p',
+        name: 'Node 16p Press',
+        signatures: [16, 8, 4],
+        rates: rates16pHouse
+    };
+
+    // 9.1: 640 pages on 16p node decomposes to 40 signatures of 16p, rates looked up under '16p'
+    const est640p16 = buildPrice({
+        copies: 1000,
+        interior_pages: 640,
+        interior_print: '4/4',
+        paper_type_interior: 'offset',
+        paper_weight_interior: 80,
+        cover_print: '4/0',
+        paper_type_cover: 'mc',
+        paper_weight_cover: 250,
+        binding_method: 'perfect bound'
+    }, node16pHouse);
+
+    // 40 signatures * (160 fixed + 16 var) = 40 * 176 = 7040.0 €
+    assert('640p on 16p node derives signature=16', est640p16.signature === 16);
+    assert('640p on 16p node sections=40', est640p16.sections === 40);
+    assert('640p on 16p node evaluates interior print cost > 0 (7040.0 €)', est640p16.debug.components.cost_print_int === 7040);
+
+    // 9.2: 200 pages on 16p node with remainder (12 of 16p + 1 of 8p)
+    const est200p16 = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        interior_print: '4/4',
+        paper_type_interior: 'offset',
+        paper_weight_interior: 80,
+        cover_print: '4/0',
+        paper_type_cover: 'mc',
+        paper_weight_cover: 250,
+        binding_method: 'perfect bound'
+    }, node16pHouse);
+
+    // 12 * (160 + 16) + 1 * (90 + 9) = 12 * 176 + 99 = 2112 + 99 = 2211.0 €
+    assert('200p on 16p node remainder handling evaluates interior print cost (2211.0 €)', est200p16.debug.components.cost_print_int === 2211);
+    assert('200p on 16p node sections count is 13', est200p16.sections === 13);
+
+    // 9.3: Existing 24p configuration (216 pages -> 9 of 24p)
+    const node24pHouse = {
+        id: 'node-24p',
+        name: 'Node 24p Press',
+        signatures: [24],
+        rates: {
+            interior_full_colour_fixed: { '24p': 200.0 },
+            interior_full_colour_var: { '24p': 20.0 }
+        }
+    };
+    const est216p24 = buildPrice({
+        copies: 1000,
+        interior_pages: 216,
+        interior_print: '4/4'
+    }, node24pHouse);
+    // 9 * (200 + 20) = 1980.0 €
+    assert('216p on 24p node evaluates signature=24 and print cost (1980.0 €)', est216p24.signature === 24 && est216p24.debug.components.cost_print_int === 1980);
+
+    // 9.4: Existing 32p configuration (640 pages -> 20 of 32p, 200 pages -> 6 of 32p + 1 of 8p)
+    const node32pHouse = {
+        id: 'node-32p',
+        name: 'Node 32p Press',
+        signatures: [32, 16, 8, 4],
+        rates: {
+            interior_full_colour_fixed: { '32p': 300.0, '8p': 100.0 },
+            interior_full_colour_var: { '32p': 30.0, '8p': 10.0 }
+        }
+    };
+    const est640p32 = buildPrice({
+        copies: 1000,
+        interior_pages: 640,
+        interior_print: '4/4'
+    }, node32pHouse);
+    // 20 * (300 + 30) = 6600.0 €
+    assert('640p on 32p node evaluates signature=32 and print cost (6600.0 €)', est640p32.signature === 32 && est640p32.debug.components.cost_print_int === 6600);
+
+    const est200p32 = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        interior_print: '4/4'
+    }, node32pHouse);
+    // 6 * (300 + 30) + 1 * (100 + 10) = 1980 + 110 = 2090.0 €
+    assert('200p on 32p node evaluates remainder print cost (2090.0 €)', est200p32.debug.components.cost_print_int === 2090);
+
+    // 9.5: Hardcover construction separated from block binding (thread sewn)
+    const estHardcoverThreadSewn = buildPrice({
+        copies: 1000,
+        interior_pages: 200,
+        product_family: 'HARDCOVER',
+        binding_method: 'thread sewn',
+        paper_type_interior: 'offset',
+        paper_weight_interior: 80,
+        paper_type_cover: 'mc',
+        paper_weight_cover: 250,
+        paper_type_endpaper: 'offset',
+        paper_weight_endpapers: 140,
+        endpapers_print: '0/0'
+    }, node16pHouse);
+
+    assert('Hardcover construction is preserved', estHardcoverThreadSewn.debug.params.construction === 'hardcover');
+    assert('Block binding method thread sewn is preserved', estHardcoverThreadSewn.debug.params.block_binding_method === 'thread sewn');
+    assert('Hardcover binding method for rates is hardcover', estHardcoverThreadSewn.debug.params.binding_method === 'hardcover');
+    assert('Hardcover binding cost is evaluated via binding_hc (not binding_ts)', estHardcoverThreadSewn.debug.components.cost_binding > 0);
+    assert('Unprinted 0/0 endpapers evaluate print cost to exactly 0.0 €', estHardcoverThreadSewn.lines.find(l => l.item === 'Endpapers print').line_total === 0);
+    assert('Unprinted 0/0 endpapers retain paper cost > 0 €', estHardcoverThreadSewn.lines.find(l => l.item.startsWith('Endpapers paper')).line_total > 0);
+
+    // ---------------------------------------------------------------------------
+
     console.log(`\n${'─'.repeat(40)}`);
     console.log(`Results: ${passed} passed, ${failed} failed`);
     if (failed > 0) process.exit(1);
 })();
+

@@ -97,12 +97,14 @@ function getFinishingText(input) {
  * @returns {number}
  */
 function getSectionsBindings(bindingMethod, signature, sectionsArray) {
-    if (signature === 32 && bindingMethod !== 3 && bindingMethod !== 4 && bindingMethod !== 6) {
-        return sectionsArray[0] + sectionsArray[1] + sectionsArray[2] + sectionsArray[3];
+    if (signature === 16) {
+        return (sectionsArray[0] || 0) + (sectionsArray[1] || 0) + (sectionsArray[2] || 0);
     } else if (signature === 24) {
-        return sectionsArray[0] + sectionsArray[1] + sectionsArray[2] + sectionsArray[3] + sectionsArray[4];
+        return (sectionsArray[0] || 0) + (sectionsArray[1] || 0) + (sectionsArray[2] || 0) + (sectionsArray[3] || 0) + (sectionsArray[4] || 0);
+    } else if (signature === 32 && bindingMethod !== 3 && bindingMethod !== 4 && bindingMethod !== 6) {
+        return (sectionsArray[0] || 0) + (sectionsArray[1] || 0) + (sectionsArray[2] || 0) + (sectionsArray[3] || 0);
     } else {
-        return sectionsArray[0] * 2 + sectionsArray[1] + sectionsArray[2] + sectionsArray[3];
+        return (sectionsArray[0] || 0) * 2 + (sectionsArray[1] || 0) + (sectionsArray[2] || 0) + (sectionsArray[3] || 0);
     }
 }
 
@@ -214,14 +216,43 @@ function normalizeParams(p) {
         p.delivery_country = map[k] ?? country.toUpperCase().slice(0, 2);
     }
 
-    // Binding
-    const b = String(arrGet(p, 'binding_method', 'perfect bound')).toLowerCase();
-    if (/case|hard.?cover|hc|tapadura/.test(b)) p.binding_method = 'hardcover';
-    else if (/saddle|staple|ss|cosido|grapado/.test(b)) p.binding_method = 'saddle';
-    else if (/sewn|soft.?cover|thread|cosido hilo|tapa.?blanda/.test(b)) p.binding_method = 'softcover';
-    else if (/wire|wiro|wire-o|wo/.test(b)) p.binding_method = 'wiro';
-    else if (/spiral|flexibound|espiral/.test(b)) p.binding_method = 'spiral';
-    else p.binding_method = 'perfect bound';
+    // Product family & Construction & Binding
+    const fam = String(arrGet(p, 'product_family', arrGet(p, 'family', ''))).toUpperCase();
+    const constr = String(arrGet(p, 'construction', '')).toLowerCase();
+    const rawBinding = String(arrGet(p, 'binding_method', arrGet(p, 'block_binding_method', 'perfect bound'))).toLowerCase();
+    const isHardcover = fam === 'HARDCOVER' || /case|hard.?cover|hc|tapadura/.test(constr) || /case|hard.?cover|hc|tapadura/.test(rawBinding);
+
+    p.construction = isHardcover ? 'hardcover' : 'softcover';
+    p.product_family = isHardcover ? 'HARDCOVER' : 'SOFTCOVER';
+
+    // Block binding method (thread sewn, perfect bound, saddle stitch, wire-o, spiral)
+    const rawBlock = String(arrGet(p, 'block_binding_method', '')).toLowerCase();
+    if (/sewn|thread|cosido hilo|faden/.test(rawBinding) || /sewn|thread|cosido hilo|faden/.test(rawBlock)) {
+        p.block_binding_method = 'thread sewn';
+    } else if (/saddle|staple|grapado|rückstich/.test(rawBinding) || /saddle|staple/.test(rawBlock)) {
+        p.block_binding_method = 'saddle stitch';
+    } else if (/wire|wiro|wire-o|wo/.test(rawBinding) || /wire|wiro/.test(rawBlock)) {
+        p.block_binding_method = 'wire-o';
+    } else if (/spiral|flexibound|espiral/.test(rawBinding) || /spiral/.test(rawBlock)) {
+        p.block_binding_method = 'spiral';
+    } else {
+        p.block_binding_method = 'perfect bound';
+    }
+
+    // Effective binding_method for rate lookup (binding_hc, binding_ts, binding_pb, etc.)
+    if (isHardcover) {
+        p.binding_method = 'hardcover';
+    } else if (p.block_binding_method === 'saddle stitch') {
+        p.binding_method = 'saddle';
+    } else if (p.block_binding_method === 'thread sewn') {
+        p.binding_method = 'softcover';
+    } else if (p.block_binding_method === 'wire-o') {
+        p.binding_method = 'wiro';
+    } else if (p.block_binding_method === 'spiral') {
+        p.binding_method = 'spiral';
+    } else {
+        p.binding_method = 'perfect bound';
+    }
 
     // Finishing
     const f = String(arrGet(p, 'finishing_options', 'matt lamination')).toLowerCase();
@@ -265,11 +296,11 @@ function normalizeParams(p) {
     p.paper_weight_endpapers = Number(arrGet(p, 'paper_weight_endpapers', 115));
 
     // Endpapers
-    let epRaw = arrGet(p, 'endpapers', '');
-    let epStr = typeof epRaw === 'boolean' ? (epRaw ? 'standard' : 'none') : String(epRaw).toLowerCase().trim();
+    let epRaw = arrGet(p, 'endpapers', null);
+    let epStr = typeof epRaw === 'boolean' ? (epRaw ? 'standard' : 'none') : (epRaw !== null && epRaw !== undefined ? String(epRaw).toLowerCase().trim() : null);
 
-    if (epStr === '') {
-        p.endpapers = (p.binding_method === 'hardcover') ? 'standard' : 'none';
+    if (epStr === null) {
+        p.endpapers = (p.construction === 'hardcover' || p.binding_method === 'hardcover') ? 'standard' : 'none';
     } else if (['none', 'no', '0', 'false'].includes(epStr) || epRaw === 0) {
         p.endpapers = 'none';
     } else {
@@ -277,16 +308,17 @@ function normalizeParams(p) {
     }
 
     // endpapers_print
-    const epPrintRaw = String(arrGet(p, 'endpapers_print', '')).toLowerCase().trim();
+    const epPrintRaw = arrGet(p, 'endpapers_print', null);
     if (p.endpapers === 'none') {
         p.endpapers_print = 'none';
+    } else if (epPrintRaw === null || epPrintRaw === undefined || epPrintRaw === '') {
+        p.endpapers_print = null;
     } else {
-        if (epPrintRaw === '' || epPrintRaw === 'default') {
-            p.endpapers_print = '4/0';
-        } else if (['none', 'no', '0', 'false'].includes(epPrintRaw)) {
-            p.endpapers_print = 'none';
-        } else if (/^\d\s*\/\s*\d$/.test(epPrintRaw)) {
-            p.endpapers_print = epPrintRaw.replace(/\s+/g, '');
+        const epPrintStr = String(epPrintRaw).toLowerCase().trim();
+        if (epPrintStr === '0/0' || epPrintStr === '0+0' || epPrintStr === 'none' || epPrintStr === 'unprinted' || epPrintStr === 'sin imprimir' || epPrintStr === 'unbedruckt' || epPrintStr === '0') {
+            p.endpapers_print = '0/0';
+        } else if (/^\d\s*\/\s*\d$/.test(epPrintStr)) {
+            p.endpapers_print = epPrintStr.replace(/\s+/g, '');
         } else {
             p.endpapers_print = '4/0';
         }
@@ -328,7 +360,11 @@ function sections(interiorPages, signature) {
  * @returns {number[]}
  */
 function sectionsArray(pages, signature) {
-    if (pages === 0) return [0, 0, 0, 0];
+    if (pages === 0) {
+        if (signature === 24) return [0, 0, 0, 0, 0];
+        if (signature === 16) return [0, 0, 0];
+        return [0, 0, 0, 0];
+    }
 
     if (signature === 24) {
         return [
@@ -337,6 +373,14 @@ function sectionsArray(pages, signature) {
             Math.trunc((pages % 24 % 16) / 12),
             Math.trunc((pages % 24 % 16 % 12) / 8),
             Math.trunc((pages % 24 % 16 % 12 % 8) / 4),
+        ];
+    }
+
+    if (signature === 16) {
+        return [
+            Math.trunc(pages / 16),
+            Math.trunc((pages % 16) / 8),
+            Math.trunc((pages % 8) / 4),
         ];
     }
 
@@ -456,7 +500,9 @@ function interiorPrintCost(rates, p, sectArr, copies, signature) {
 
     const sectionKeys = signature === 24
         ? ['24p', '16p', '12p', '8p', '4p']
-        : ['32p', '16p', '8p', '4p'];
+        : signature === 16
+            ? ['16p', '8p', '4p']
+            : ['32p', '16p', '8p', '4p'];
 
     let totalCost = 0.0;
     for (let i = 0; i < sectArr.length; i++) {
@@ -480,12 +526,12 @@ function interiorPrintCost(rates, p, sectArr, copies, signature) {
  * ---------------------------------------------------------------------- */
 
 function endpapersCost(rates, p, copies) {
-    const bindingMethodInt = getBindingCode(String(p.binding_method), 'default');
-    let total = 0.0;
-
-    if (bindingMethodInt !== 4) return total;
+    const isHardcover = p.construction === 'hardcover' || p.binding_method === 'hardcover';
+    if (!isHardcover) return 0.0;
 
     const epPrintStr = String(p.endpapers_print ?? '');
+    if (epPrintStr === '0/0' || epPrintStr === 'none' || !epPrintStr) return 0.0;
+
     let printingEnds = 0, printingEndsRev = 0;
 
     if (epPrintStr.includes('/')) {
@@ -494,6 +540,7 @@ function endpapersCost(rates, p, copies) {
         printingEndsRev = parseInt(parts[1] ?? 0, 10);
     }
 
+    let total = 0.0;
     if (printingEnds >= 1 && printingEnds <= 5) {
         const epFixed = Number(arrGet(rates.endpaper_fixed_by_colours ?? {}, printingEnds, 0));
         const epVar = Number(arrGet(rates.endpaper_var_per_1000_by_colours ?? {}, printingEnds, 0));
@@ -553,14 +600,13 @@ function sheetsInterior(rates, p, copies, signature, sectArr) {
         paperNetInterior =
             s24 * copies + s16 * copies + (s12 / 2) * copies + (s8 / 2) * copies + (s4 / 4) * copies;
     } else if (signature === 16) {
-        const [s32, s16, s8, s4] = sectArr;
+        const [s16, s8, s4] = sectArr;
         totalPaperInterior =
-            s32 * 2 * fixed + s32 * 2 * copies * vari +
-            s16 * fixed + s16 * copies * vari +
-            s8 * fixed + s8 * (copies / 2) * vari +
-            s4 * fixed + s4 * (copies / 4) * vari;
+            (s16 || 0) * fixed + (s16 || 0) * copies * vari +
+            (s8 || 0) * fixed + (s8 || 0) * (copies / 2) * vari +
+            (s4 || 0) * fixed + (s4 || 0) * (copies / 4) * vari;
         paperNetInterior =
-            s32 * 2 * copies + s16 * copies + (s8 / 2) * copies + (s4 / 4) * copies;
+            (s16 || 0) * copies + ((s8 || 0) / 2) * copies + ((s4 || 0) / 4) * copies;
     } else {
         // sig=32 (else)
         const [s32, s16, s8, s4] = sectArr;
@@ -619,18 +665,24 @@ function sheetsCover(rates, p, copies, signature) {
  * ---------------------------------------------------------------------- */
 
 function sheetsEndpaper(rates, p, copies, signature) {
-    const bindingMethodInt = getBindingCode(String(p.binding_method), 'alternative');
-    if (bindingMethodInt !== 4) return 0.0;
-
-    const epPrintStr = String(p.endpapers_print ?? '');
-    let printingEnds = 0;
-
-    if (epPrintStr.includes('/')) {
-        const parts = epPrintStr.split('/');
-        printingEnds = parseInt(parts[0] ?? 1, 10) + 1;
-    }
+    const isHardcover = p.construction === 'hardcover' || p.binding_method === 'hardcover';
+    if (!isHardcover || p.endpapers === 'none') return 0.0;
 
     const paperNetEndpapers = signature === 32 ? copies / 4 : copies / 2;
+
+    const epPrintStr = String(p.endpapers_print ?? '');
+    if (epPrintStr === '0/0' || epPrintStr === 'none' || !epPrintStr) {
+        return paperNetEndpapers;
+    }
+
+    let printingEnds = 0;
+    if (epPrintStr.includes('/')) {
+        const parts = epPrintStr.split('/');
+        const front = parseInt(parts[0] ?? 0, 10);
+        if (front > 0) {
+            printingEnds = front;
+        }
+    }
 
     if (printingEnds === 0) return paperNetEndpapers;
 
@@ -718,8 +770,17 @@ function costTransport(rates, p, copies, sectArr, costPrintInt, costPrintCov, en
         const bindingMethodInt = getBindingCode(String(p.binding_method), 'alternative');
         const totalBooks = bindingMethodInt === 3 ? 11000 : 7000;
 
-        const [s32, s16, s8, s4] = sectArr;
-        const totalSections = s32 * 2 + s16 + (s8 / 2) + (s4 / 4);
+        let totalSections;
+        if (p.signature === 16 || sectArr.length === 3) {
+            const [s16, s8, s4] = sectArr;
+            totalSections = (s16 || 0) + ((s8 || 0) / 2) + ((s4 || 0) / 4);
+        } else if (p.signature === 24 || sectArr.length === 5) {
+            const [s24, s16, s12, s8, s4] = sectArr;
+            totalSections = (s24 || 0) * (24 / 16) + (s16 || 0) + ((s12 || 0) * 12 / 16) + ((s8 || 0) / 2) + ((s4 || 0) / 4);
+        } else {
+            const [s32, s16, s8, s4] = sectArr;
+            totalSections = (s32 || 0) * 2 + (s16 || 0) + ((s8 || 0) / 2) + ((s4 || 0) / 4);
+        }
         const divisionSections = totalBooks / totalSections;
         const pallets = Math.ceil(copies / divisionSections);
 
